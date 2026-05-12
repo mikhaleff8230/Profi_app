@@ -50,3 +50,11 @@ Full-stack MVP marketplace similar to Profi.ru. Location-based service marketpla
 - Phone SMS verification (Twilio)
 - Map heat-map view, advanced filters (budget range, deadline)
 - Admin moderation dashboard
+
+## Implemented (Iteration 3 — Feb 2026)
+- TaskDetail redesign matching screenshots: photo carousel with N/total indicator, "Заказ № …" with order timestamps, "В этом заказе ваш отклик будет N-м по рейтингу" info banner, "Клиент пока ни с кем не обменялся контактами" warning banner, customer card (avatar + "В сети …"), "Описание" section, meta card, sticky bottom "Написать клиенту" CTA (changes to "Чаты" if already applied).
+- New backend endpoint `GET /api/tasks/{id}/specialist-info` returns has_applied, rank by rating, total_applications, customer block.
+- Chats list with status tabs (Открытые / В работе / Выполненные / Архив), colored avatar bubbles per chat partner, double-tick indicator, "Клиент увидел отклик" hint, server-side status filter via `GET /api/chats?status=open|in_progress|completed`.
+- Profile (Анкета) redesign: large square avatar with camera-upload button, star rating + reviews + "Очень хвалят", name with inline edit, "Паспорт проверен" verification tag, "Моя статистика" row, 3-up stats grid (Откликов / Принято / Активных чатов for specialists; Заказов / Открытых / В работе for customers), "О себе" inline-editable section, services chips, phone+city footer, settings/logout in top-right.
+- Backend `GET /api/auth/stats` (per-role stats), avatar field in PATCH /auth/profile, `last_seen` tracked on each /auth/me call (now returns the fresh value).
+- Backend: 51/51 tests passing (37 regression + 14 new).

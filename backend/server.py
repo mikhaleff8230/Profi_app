@@ -332,7 +332,9 @@ async def login(body: LoginRequest):
 
 @api_router.get("/auth/me", response_model=UserPublic)
 async def me(user: dict = Depends(get_current_user)):
-    await db.users.update_one({"id": user["id"]}, {"$set": {"last_seen": now_iso()}})
+    ts = now_iso()
+    await db.users.update_one({"id": user["id"]}, {"$set": {"last_seen": ts}})
+    user["last_seen"] = ts
     return user_to_public(user)
 
 
