@@ -621,7 +621,6 @@ async def upload_photo(file: UploadFile = File(...), user: dict = Depends(get_cu
         "created_at": now_iso(),
     }
     await db.files.insert_one(rec)
-    base = os.environ.get("FRONTEND_URL", "")
     return {"id": file_id, "path": rec["storage_path"], "url": f"/api/files/{rec['storage_path']}"}
 
 
