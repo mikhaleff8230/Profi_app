@@ -822,6 +822,56 @@ async def on_startup():
     await db.chats.create_index([("customer_id", 1), ("specialist_id", 1)])
     await db.files.create_index("storage_path")
     init_storage()
+    await seed_test_user()
+
+
+async def seed_test_user():
+    """Ensure a fixed QA test user exists. Re-seeded on every startup."""
+    phone = "+79031416581"
+    password = "Test12345!"
+    extra = {
+        "email": "sale@sancan.ru",
+        "first_name": "Test",
+        "last_name": "User",
+        "email_verified": True,
+        "is_test_user": True,
+        "tester_role": "tester",
+        "status": "active",
+    }
+    existing = await db.users.find_one({"phone": phone})
+    if existing:
+        # Refresh the password hash + extras every startup so the credentials never drift
+        await db.users.update_one(
+            {"phone": phone},
+            {"$set": {
+                "password_hash": hash_password(password),
+                "name": "Test User",
+                "role": "customer",
+                "city": "Москва",
+                **extra,
+            }},
+        )
+        logging.info(f"Test user refreshed: {phone}")
+        return
+    user_doc = {
+        "id": str(uuid.uuid4()),
+        "phone": phone,
+        "password_hash": hash_password(password),
+        "name": "Test User",
+        "role": "customer",
+        "city": "Москва",
+        "rating": 5.0,
+        "reviews_count": 0,
+        "bio": "QA / test account",
+        "services": [],
+        "avatar": None,
+        "lat": 55.7558,
+        "lng": 37.6173,
+        "created_at": now_iso(),
+        **extra,
+    }
+    await db.users.insert_one(user_doc)
+    logging.info(f"Test user created: {phone}")
 
 
 app.include_router(api_router)
