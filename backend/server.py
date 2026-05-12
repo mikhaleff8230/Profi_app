@@ -155,6 +155,7 @@ class UserPublic(BaseModel):
     avatar: Optional[str] = None
     lat: Optional[float] = None
     lng: Optional[float] = None
+    last_seen: Optional[str] = None
     created_at: str
 
 
@@ -239,6 +240,7 @@ class ChatPublic(BaseModel):
     specialist_name: str
     last_message: Optional[str] = None
     last_message_at: Optional[str] = None
+    task_status: Optional[str] = None
     created_at: str
 
 
@@ -282,6 +284,7 @@ def user_to_public(u: dict) -> dict:
         "avatar": u.get("avatar"),
         "lat": u.get("lat"),
         "lng": u.get("lng"),
+        "last_seen": u.get("last_seen"),
         "created_at": u["created_at"],
     }
 
@@ -329,7 +332,33 @@ async def login(body: LoginRequest):
 
 @api_router.get("/auth/me", response_model=UserPublic)
 async def me(user: dict = Depends(get_current_user)):
+    await db.users.update_one({"id": user["id"]}, {"$set": {"last_seen": now_iso()}})
     return user_to_public(user)
+
+
+@api_router.get("/auth/stats")
+async def my_stats(user: dict = Depends(get_current_user)):
+    if user["role"] == "specialist":
+        applied = await db.applications.count_documents({"specialist_id": user["id"]})
+        accepted = await db.applications.count_documents({"specialist_id": user["id"], "status": "accepted"})
+        active_chats = await db.chats.count_documents({"specialist_id": user["id"]})
+        return {
+            "role": "specialist",
+            "applied": applied,
+            "accepted": accepted,
+            "active_chats": active_chats,
+            "rating": user.get("rating", 0.0),
+            "reviews_count": user.get("reviews_count", 0),
+        }
+    posted = await db.tasks.count_documents({"customer_id": user["id"]})
+    open_tasks = await db.tasks.count_documents({"customer_id": user["id"], "status": "open"})
+    in_progress = await db.tasks.count_documents({"customer_id": user["id"], "status": "in_progress"})
+    return {
+        "role": "customer",
+        "posted": posted,
+        "open": open_tasks,
+        "in_progress": in_progress,
+    }
 
 
 @api_router.post("/auth/logout")
@@ -568,6 +597,36 @@ async def accept_application(app_id: str, user: dict = Depends(get_current_user)
     return {"ok": True}
 
 
+@api_router.get("/tasks/{task_id}/specialist-info")
+async def task_specialist_info(task_id: str, user: dict = Depends(get_current_user)):
+    """Return application info for the current specialist on a given task."""
+    if user["role"] != "specialist":
+        raise HTTPException(status_code=403, detail="Specialists only")
+    task = await db.tasks.find_one({"id": task_id}, {"_id": 0})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    my_app = await db.applications.find_one({"task_id": task_id, "specialist_id": user["id"]}, {"_id": 0})
+    total_apps = await db.applications.count_documents({"task_id": task_id})
+    customer = await db.users.find_one({"id": task["customer_id"]}, {"_id": 0})
+    # Rank by specialist rating (descending) — specialists with higher rating rank first
+    user_rating = user.get("rating", 0.0)
+    rank_query = {"task_id": task_id, "specialist_rating": {"$gt": user_rating}}
+    rank_above = await db.applications.count_documents(rank_query)
+    rank = rank_above + 1
+    return {
+        "has_applied": my_app is not None,
+        "my_application": app_to_public(my_app) if my_app else None,
+        "rank": rank if my_app else (total_apps + 1),
+        "total_applications": total_apps,
+        "customer": {
+            "id": customer["id"],
+            "name": customer["name"],
+            "avatar": customer.get("avatar"),
+            "last_seen": customer.get("last_seen", customer.get("created_at")),
+        } if customer else None,
+    }
+
+
 @api_router.get("/applications/mine", response_model=List[ApplicationPublic])
 async def my_applications(user: dict = Depends(get_current_user)):
     cursor = db.applications.find({"specialist_id": user["id"]}, {"_id": 0}).sort("created_at", -1)
@@ -664,11 +723,28 @@ def chat_to_public(c: dict) -> dict:
 
 
 @api_router.get("/chats", response_model=List[ChatPublic])
-async def list_chats(user: dict = Depends(get_current_user)):
+async def list_chats(status: Optional[str] = None, user: dict = Depends(get_current_user)):
     query = {"$or": [{"customer_id": user["id"]}, {"specialist_id": user["id"]}]}
     cursor = db.chats.find(query, {"_id": 0}).sort("last_message_at", -1)
-    chats = await cursor.to_list(200)
-    return [chat_to_public(c) for c in chats]
+    chats = await cursor.to_list(500)
+    # Enrich with linked task status and filter
+    out: List[dict] = []
+    for c in chats:
+        task = await db.tasks.find_one({"id": c["task_id"]}, {"_id": 0, "status": 1})
+        task_status = task["status"] if task else "archived"
+        c_pub = chat_to_public(c)
+        c_pub["task_status"] = task_status
+        if status:
+            if status == "open" and task_status != "open":
+                continue
+            if status == "in_progress" and task_status != "in_progress":
+                continue
+            if status == "completed" and task_status != "completed":
+                continue
+            if status == "archived" and task_status not in ("archived",):
+                continue
+        out.append(c_pub)
+    return out
 
 
 @api_router.get("/chats/{chat_id}", response_model=ChatPublic)
