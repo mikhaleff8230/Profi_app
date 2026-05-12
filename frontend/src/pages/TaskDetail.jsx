@@ -6,6 +6,7 @@ import { api, formatApiError } from "../api";
 import { useAuth } from "../auth";
 import { useLang } from "../i18n";
 import { TopBar, Badge, timeAgo } from "../components/Layout";
+import { fileUrl } from "../components/TaskCard";
 
 export default function TaskDetail() {
   const { id } = useParams();
@@ -106,6 +107,16 @@ export default function TaskDetail() {
         </div>
         <h1 className="text-2xl font-extrabold tracking-tight mb-3">{task.title}</h1>
         <p className="text-base text-neutral-700 mb-4 whitespace-pre-line">{task.description}</p>
+
+        {task.photos?.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 mb-5" data-testid="task-photos">
+            {task.photos.map((p, i) => (
+              <div key={i} className="aspect-square rounded-2xl overflow-hidden bg-lavender-50">
+                <img src={fileUrl(p)} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="card-light bg-lavender-50 border-0 flex flex-col gap-3 mb-5">
           {cat && (

@@ -55,7 +55,7 @@ export function BottomTabs() {
   const { user } = useAuth();
   const location = useLocation();
   // Hide on certain routes
-  const hide = ["/", "/login", "/register"].includes(location.pathname) || location.pathname.startsWith("/chat/");
+  const hide = ["/", "/login", "/register"].includes(location.pathname) || location.pathname.startsWith("/chat/") || location.pathname === "/map";
   if (hide || !user) return null;
 
   const tabs = [

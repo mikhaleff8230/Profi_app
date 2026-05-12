@@ -7,12 +7,14 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import logging
 import uuid
+import math
+import requests
 import jwt
 import bcrypt
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Header, Query
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -24,6 +26,79 @@ db = client[os.environ['DB_NAME']]
 
 JWT_ALGORITHM = "HS256"
 JWT_SECRET = os.environ['JWT_SECRET']
+
+# Object storage
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "profi-mvp"
+_storage_key: Optional[str] = None
+
+
+def init_storage() -> Optional[str]:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    if not EMERGENT_KEY:
+        return None
+    try:
+        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+        resp.raise_for_status()
+        _storage_key = resp.json()["storage_key"]
+        return _storage_key
+    except Exception as e:
+        logging.error(f"Storage init failed: {e}")
+        return None
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=500, detail="Storage not available")
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120,
+    )
+    if resp.status_code == 403:
+        # Refresh key and retry once
+        global _storage_key
+        _storage_key = None
+        key = init_storage()
+        resp = requests.put(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key, "Content-Type": content_type},
+            data=data, timeout=120,
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_object(path: str):
+    key = init_storage()
+    resp = requests.get(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key}, timeout=60,
+    )
+    if resp.status_code == 403:
+        global _storage_key
+        _storage_key = None
+        key = init_storage()
+        resp = requests.get(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key}, timeout=60,
+        )
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    R = 6371.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 # ---------- Helpers ----------
@@ -78,6 +153,8 @@ class UserPublic(BaseModel):
     bio: Optional[str] = None
     services: List[str] = []
     avatar: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     created_at: str
 
 
@@ -94,6 +171,9 @@ class TaskCreate(BaseModel):
     address: Optional[str] = None
     budget: Optional[int] = None
     deadline: Optional[str] = None  # ISO date
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    photos: List[str] = []  # storage paths
 
 
 class TaskPublic(BaseModel):
@@ -110,6 +190,10 @@ class TaskPublic(BaseModel):
     customer_name: str
     applications_count: int = 0
     accepted_specialist_id: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    photos: List[str] = []
+    distance_km: Optional[float] = None
     created_at: str
 
 
@@ -196,6 +280,8 @@ def user_to_public(u: dict) -> dict:
         "bio": u.get("bio"),
         "services": u.get("services", []),
         "avatar": u.get("avatar"),
+        "lat": u.get("lat"),
+        "lng": u.get("lng"),
         "created_at": u["created_at"],
     }
 
@@ -275,8 +361,11 @@ async def get_categories():
 
 
 # ---------- Tasks ----------
-async def task_to_public(t: dict) -> dict:
+async def task_to_public(t: dict, user_lat: Optional[float] = None, user_lng: Optional[float] = None) -> dict:
     apps_count = await db.applications.count_documents({"task_id": t["id"]})
+    distance = None
+    if user_lat is not None and user_lng is not None and t.get("lat") is not None and t.get("lng") is not None:
+        distance = round(haversine(user_lat, user_lng, t["lat"], t["lng"]), 1)
     return {
         "id": t["id"],
         "title": t["title"],
@@ -291,6 +380,10 @@ async def task_to_public(t: dict) -> dict:
         "customer_name": t["customer_name"],
         "applications_count": apps_count,
         "accepted_specialist_id": t.get("accepted_specialist_id"),
+        "lat": t.get("lat"),
+        "lng": t.get("lng"),
+        "photos": t.get("photos", []),
+        "distance_km": distance,
         "created_at": t["created_at"],
     }
 
@@ -313,6 +406,9 @@ async def create_task(body: TaskCreate, user: dict = Depends(get_current_user)):
         "customer_id": user["id"],
         "customer_name": user["name"],
         "accepted_specialist_id": None,
+        "lat": body.lat,
+        "lng": body.lng,
+        "photos": body.photos or [],
         "created_at": now_iso(),
     }
     await db.tasks.insert_one(doc)
@@ -320,7 +416,14 @@ async def create_task(body: TaskCreate, user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/tasks", response_model=List[TaskPublic])
-async def list_tasks(category: Optional[str] = None, city: Optional[str] = None, q: Optional[str] = None):
+async def list_tasks(
+    category: Optional[str] = None,
+    city: Optional[str] = None,
+    q: Optional[str] = None,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    sort: Optional[str] = None,
+):
     query: dict = {"status": "open"}
     if category:
         query["category"] = category
@@ -331,9 +434,15 @@ async def list_tasks(category: Optional[str] = None, city: Optional[str] = None,
             {"title": {"$regex": q, "$options": "i"}},
             {"description": {"$regex": q, "$options": "i"}},
         ]
-    cursor = db.tasks.find(query, {"_id": 0}).sort("created_at", -1).limit(100)
-    tasks = await cursor.to_list(100)
-    return [await task_to_public(t) for t in tasks]
+    cursor = db.tasks.find(query, {"_id": 0}).sort("created_at", -1).limit(200)
+    tasks = await cursor.to_list(200)
+    results = [await task_to_public(t, lat, lng) for t in tasks]
+    if sort == "distance" and lat is not None and lng is not None:
+        results.sort(key=lambda r: (r["distance_km"] is None, r["distance_km"] or 0))
+    elif lat is not None and lng is not None:
+        # default: distance-aware when location provided
+        results.sort(key=lambda r: (r["distance_km"] is None, r["distance_km"] if r["distance_km"] is not None else 1e9))
+    return results[:100]
 
 
 @api_router.get("/tasks/mine", response_model=List[TaskPublic])
@@ -344,11 +453,11 @@ async def my_tasks(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/tasks/{task_id}", response_model=TaskPublic)
-async def get_task(task_id: str):
+async def get_task(task_id: str, lat: Optional[float] = None, lng: Optional[float] = None):
     t = await db.tasks.find_one({"id": task_id}, {"_id": 0})
     if not t:
         raise HTTPException(status_code=404, detail="Task not found")
-    return await task_to_public(t)
+    return await task_to_public(t, lat, lng)
 
 
 @api_router.delete("/tasks/{task_id}")
@@ -477,11 +586,66 @@ async def get_specialist(user_id: str):
 
 @api_router.patch("/auth/profile", response_model=UserPublic)
 async def update_profile(body: dict, user: dict = Depends(get_current_user)):
-    allowed = {k: v for k, v in body.items() if k in ("name", "city", "bio", "services", "avatar")}
+    allowed = {k: v for k, v in body.items() if k in ("name", "city", "bio", "services", "avatar", "lat", "lng")}
     if allowed:
         await db.users.update_one({"id": user["id"]}, {"$set": allowed})
     u = await db.users.find_one({"id": user["id"]}, {"_id": 0})
     return user_to_public(u)
+
+
+# ---------- Photo Upload ----------
+ALLOWED_EXT = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
+
+
+@api_router.post("/uploads")
+async def upload_photo(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    filename = file.filename or "file"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    if ext not in ALLOWED_EXT:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    content_type = ALLOWED_EXT[ext]
+    data = await file.read()
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 8MB)")
+    storage_path = f"{APP_NAME}/uploads/{user['id']}/{uuid.uuid4()}.{ext}"
+    result = put_object(storage_path, data, content_type)
+    file_id = str(uuid.uuid4())
+    rec = {
+        "id": file_id,
+        "storage_path": result.get("path", storage_path),
+        "original_filename": filename,
+        "content_type": content_type,
+        "size": len(data),
+        "owner_id": user["id"],
+        "is_deleted": False,
+        "created_at": now_iso(),
+    }
+    await db.files.insert_one(rec)
+    base = os.environ.get("FRONTEND_URL", "")
+    return {"id": file_id, "path": rec["storage_path"], "url": f"/api/files/{rec['storage_path']}"}
+
+
+@api_router.get("/files/{path:path}")
+async def file_download(path: str):
+    record = await db.files.find_one({"storage_path": path, "is_deleted": False})
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+    data, content_type = get_object(path)
+    return Response(content=data, media_type=record.get("content_type", content_type))
+
+
+# ---------- Stories (static banners) ----------
+STORIES = [
+    {"id": "spring", "title_ru": "Что всплывает весной?", "title_ro": "Ce iese la iveală primăvara?", "color": "#9DB2C4", "icon": "Sun"},
+    {"id": "moments", "title_ru": "Ради таких моментов", "title_ro": "Pentru astfel de momente", "color": "#A4B9D1", "icon": "Sparkles"},
+    {"id": "now", "title_ru": "Здесь и сейчас", "title_ro": "Aici și acum", "color": "#B8C7DC", "icon": "Hourglass"},
+    {"id": "value", "title_ru": "Цена оправдана на 100%", "title_ro": "Preț justificat 100%", "color": "#C8D2E1", "icon": "PiggyBank"},
+]
+
+
+@api_router.get("/stories")
+async def get_stories():
+    return STORIES
 
 
 # ---------- Chats ----------
@@ -579,6 +743,8 @@ async def on_startup():
     await db.applications.create_index([("task_id", 1), ("specialist_id", 1)], unique=True)
     await db.messages.create_index("chat_id")
     await db.chats.create_index([("customer_id", 1), ("specialist_id", 1)])
+    await db.files.create_index("storage_path")
+    init_storage()
 
 
 app.include_router(api_router)

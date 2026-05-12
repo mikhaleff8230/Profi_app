@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 2 backend testing complete. All 37 pytest tests pass (26 regression + 11 new). Verified: GET /api/stories (4 banners with title_ru/title_ro/color/icon), POST /api/uploads (auth-gated, type-validated, persisted to db.files), GET /api/files/{path} (returns correct content-type and 404 for missing), POST /api/tasks accepts lat/lng/photos and persists them, GET /api/tasks returns distance_km (Haversine) and sorts by distance when geo provided (explicit sort=distance also works), GET /api/tasks/{id}?lat&lng returns distance_km/photos/lat/lng, PATCH /api/auth/profile updates lat/lng. Regression on register/login/me/categories/tasks/applications/accept/chats/messages/specialists all green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/uploads", "issue": "Unused local 'base = os.environ.get('FRONTEND_URL', '')' in upload_photo — dead code; should be removed or used to build absolute url."},
+      {"endpoint": "GET /api/files/{path:path}", "issue": "Endpoint is public (no auth). Any guessable storage_path is downloadable. Consider auth + ownership/ACL check for private uploads."},
+      {"endpoint": "POST /api/uploads", "issue": "File type detection relies solely on extension, not magic-bytes. A .png-named text file would be accepted (size check still applies). Add MIME/content sniff for hardening."},
+      {"endpoint": "GET /api/tasks", "issue": "Default 'distance-aware sort when location provided' silently overrides recency. Documenting this behavior or requiring explicit sort param would be clearer."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: remove dead 'base = os.environ.get(FRONTEND_URL, ...)' line in /api/uploads",
+    "Optional: add auth/ownership check on /api/files/{path} if files are meant to be private",
+    "Optional: add magic-byte content-type validation in upload"
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~770 lines — still manageable but approaching split threshold (Auth / Tasks / Uploads / Chats routers).",
+    "Object storage key cached in module global with single-retry on 403 — fine for MVP but not concurrency-safe under multi-worker uvicorn.",
+    "Haversine returns float without bounds checking on lat/lng; out-of-range coords would still compute. Pydantic validation on TaskCreate.lat/lng (range -90..90 / -180..180) would harden input.",
+    "CORS allow_origins=['*'] + allow_credentials=True is invalid per spec (browsers ignore credentials with wildcard). Use explicit origins for production."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (per request)"},
+  "test_credentials": "Dynamic phones generated per-run via _phone() helper (timestamp + uuid suffix) to avoid collision with existing +79991230001/+79991230002.",
+  "seed_data_creation": "Per-run: 1 customer + 2 specialists + 1 fresh specialist; 3 tasks (1 baseline 'repair' + 2 geo tasks: Moscow near 55.7539/37.6208 with photo, SPB far 59.9343/30.3351). One PNG uploaded to object storage under profi-mvp/uploads/{customer_id}/. All TEST data via marketplace; no manual seed scripts.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Tests live in /app/backend/tests/backend_test.py (extend, don't rewrite). The 'ctx' module-scoped fixture chains state across tests (cust_token, spec_token, task_id, photo_path, geo_task_near/far). Use _phone() for fresh accounts. TINY_PNG constant available for upload tests. Object storage (Emergent objstore) is live and working — uploads + downloads round-trip successfully.",
+  "rca of the issue": "N/A — no bugs found."
+}

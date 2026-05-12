@@ -5,12 +5,15 @@ import * as Lucide from "lucide-react";
 import { api, formatApiError } from "../api";
 import { useAuth } from "../auth";
 import { useLang } from "../i18n";
+import { useGeo } from "../geo";
 import { TopBar } from "../components/Layout";
+import { fileUrl } from "../components/TaskCard";
 
 export default function CreateTask() {
   const navigate = useNavigate();
   const { t, lang } = useLang();
   const { user } = useAuth();
+  const { coords, request, status } = useGeo();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     title: "",
@@ -19,8 +22,12 @@ export default function CreateTask() {
     city: user?.city || "",
     address: "",
     budget: "",
+    lat: null,
+    lng: null,
+    photos: [],
   });
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     api.get("/categories").then((r) => setCategories(r.data));
@@ -34,7 +41,10 @@ export default function CreateTask() {
     if (!canSubmit) return;
     setLoading(true);
     try {
-      const payload = { ...form, budget: form.budget ? parseInt(form.budget, 10) : null };
+      const payload = {
+        ...form,
+        budget: form.budget ? parseInt(form.budget, 10) : null,
+      };
       const { data } = await api.post("/tasks", payload);
       toast.success(t("success"));
       navigate(`/tasks/${data.id}`, { replace: true });
@@ -42,6 +52,37 @@ export default function CreateTask() {
       toast.error(formatApiError(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      for (const file of files.slice(0, 5 - form.photos.length)) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const { data } = await api.post("/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+        setForm((f) => ({ ...f, photos: [...f.photos, data.path] }));
+      }
+    } catch (err) {
+      toast.error(formatApiError(err));
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const removePhoto = (path) => setForm((f) => ({ ...f, photos: f.photos.filter((p) => p !== path) }));
+
+  const attachLocation = () => {
+    if (coords) {
+      setForm((f) => ({ ...f, lat: coords.lat, lng: coords.lng }));
+      toast.success(t("location_added"));
+    } else {
+      request();
+      toast.info(t("loading"));
     }
   };
 
@@ -69,6 +110,40 @@ export default function CreateTask() {
             onChange={(e) => update("description", e.target.value)}
             placeholder={t("task_description_placeholder")}
           />
+        </div>
+
+        {/* Photos */}
+        <div>
+          <label className="text-sm font-semibold text-neutral-600 mb-2 block">{t("photos")}</label>
+          <div className="grid grid-cols-3 gap-2">
+            {form.photos.map((p) => (
+              <div key={p} className="relative aspect-square rounded-2xl overflow-hidden bg-lavender-50">
+                <img src={fileUrl(p)} alt="" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  data-testid={`remove-photo-${p}`}
+                  onClick={() => removePhoto(p)}
+                  className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center"
+                ><Lucide.X size={14} /></button>
+              </div>
+            ))}
+            {form.photos.length < 5 && (
+              <label
+                data-testid="add-photo-btn"
+                className="aspect-square rounded-2xl border-2 border-dashed border-neutral-200 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-black text-neutral-500"
+              >
+                {uploading ? (
+                  <Lucide.Loader2 size={22} className="animate-spin" />
+                ) : (
+                  <>
+                    <Lucide.Plus size={22} />
+                    <span className="text-[10px] font-semibold">{t("add_photo")}</span>
+                  </>
+                )}
+                <input type="file" accept="image/*" multiple className="hidden" onChange={onFiles} />
+              </label>
+            )}
+          </div>
         </div>
 
         <div>
@@ -128,7 +203,17 @@ export default function CreateTask() {
           />
         </div>
 
-        <div className="pt-4">
+        <button
+          type="button"
+          data-testid="attach-location-btn"
+          onClick={attachLocation}
+          className={`flex items-center justify-center gap-2 rounded-2xl h-12 text-sm font-semibold transition-colors ${form.lat ? "bg-green-50 text-green-700" : "bg-lavender-50 hover:bg-lavender-100 text-black"}`}
+        >
+          <Lucide.MapPin size={18} />
+          {form.lat ? t("location_added") : (status === "denied" ? t("enable_geo") : t("use_my_location"))}
+        </button>
+
+        <div className="pt-2">
           <button
             data-testid="create-task-submit"
             type="submit"

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import * as Lucide from "lucide-react";
 import { api } from "../api";
 import { useAuth } from "../auth";
@@ -21,6 +21,9 @@ export default function Orders() {
   }, [user]);
 
   if (!user) return null;
+  if (user.role === "specialist") {
+    return <Navigate to="/tasks" replace />;
+  }
 
   return (
     <div className="scroll-area bg-white flex flex-col" data-testid="orders-page">

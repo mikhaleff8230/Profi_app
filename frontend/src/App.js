@@ -3,12 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/auth";
 import { LangProvider } from "@/i18n";
+import { GeoProvider } from "@/geo";
 import { AppShell, BottomTabs } from "@/components/Layout";
 import Onboarding from "@/pages/Onboarding";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Home from "@/pages/Home";
 import TasksList from "@/pages/TasksList";
+import MapView from "@/pages/MapView";
 import CreateTask from "@/pages/CreateTask";
 import TaskDetail from "@/pages/TaskDetail";
 import Orders from "@/pages/Orders";
@@ -40,6 +42,7 @@ function AppRoutes() {
         <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/tasks" element={<ProtectedRoute><TasksList /></ProtectedRoute>} />
+        <Route path="/map" element={<ProtectedRoute><MapView /></ProtectedRoute>} />
         <Route path="/tasks/:id" element={<ProtectedRoute><TaskDetail /></ProtectedRoute>} />
         <Route path="/create-task" element={<ProtectedRoute><CreateTask /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
@@ -58,10 +61,12 @@ function App() {
   return (
     <LangProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-          <Toaster position="top-center" richColors />
-        </BrowserRouter>
+        <GeoProvider>
+          <BrowserRouter>
+            <AppRoutes />
+            <Toaster position="top-center" richColors />
+          </BrowserRouter>
+        </GeoProvider>
       </AuthProvider>
     </LangProvider>
   );
