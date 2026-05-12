@@ -1,0 +1,89 @@
+{
+  "theme": "light",
+  "archetype": "High-Contrast Minimalist (Archetype 4 variation)",
+  "colors": {
+    "background": {
+      "primary": "#FFFFFF",
+      "secondary": "#F5F3F7",
+      "input": "#F5F3F7"
+    },
+    "surface": {
+      "primary": "#000000",
+      "secondary": "#FFFFFF",
+      "disabled": "#F0F0F0"
+    },
+    "text": {
+      "primary": "#000000",
+      "secondary": "#666666",
+      "inverse": "#FFFFFF",
+      "disabled": "#A3A3A3"
+    },
+    "border": {
+      "default": "#EAEAEA",
+      "accent": "#E6E0F8"
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "heading": "'Manrope', sans-serif",
+      "body": "'Manrope', sans-serif"
+    },
+    "scales": {
+      "h1": "text-3xl md:text-4xl font-extrabold tracking-tight text-black",
+      "h2": "text-2xl font-bold tracking-tight text-black",
+      "h3": "text-xl font-bold text-black",
+      "body": "text-base font-normal text-black",
+      "caption": "text-sm font-medium text-neutral-500",
+      "button": "text-base font-bold"
+    }
+  },
+  "layout": {
+    "container": "w-full max-w-md mx-auto min-h-screen bg-white relative overflow-x-hidden flex flex-col shadow-2xl md:my-8 md:rounded-[2.5rem] md:min-h-[850px] md:max-h-[850px]",
+    "spacing": {
+      "screen": "p-6",
+      "section": "gap-8",
+      "item": "gap-4"
+    },
+    "borderRadius": {
+      "button": "rounded-full",
+      "input": "rounded-2xl",
+      "card": "rounded-3xl",
+      "container": "rounded-none md:rounded-[2.5rem]"
+    }
+  },
+  "components": {
+    "button": {
+      "primary": "w-full h-14 bg-black text-white rounded-full flex items-center justify-center font-bold hover:bg-neutral-800 transition-colors",
+      "secondary": "w-full h-14 bg-transparent border-2 border-[#E6E0F8] text-black rounded-full flex items-center justify-center font-bold hover:bg-[#F5F3F7] transition-colors",
+      "disabled": "w-full h-14 bg-neutral-200 text-neutral-400 rounded-full flex items-center justify-center font-bold cursor-not-allowed",
+      "text": "text-black font-semibold hover:opacity-70 transition-opacity py-4"
+    },
+    "input": {
+      "default": "w-full h-14 bg-[#F5F3F7] text-black rounded-2xl px-4 outline-none focus:ring-2 focus:ring-black transition-all placeholder:text-neutral-400",
+      "phone": "flex items-center w-full h-14 bg-[#F5F3F7] rounded-2xl px-4 focus-within:ring-2 focus-within:ring-black transition-all text-black"
+    },
+    "bottomNav": {
+      "container": "absolute bottom-0 w-full bg-white border-t border-neutral-100 flex justify-around items-center px-2 py-3 pb-safe z-50 rounded-b-none md:rounded-b-[2.5rem]",
+      "item": "flex flex-col items-center justify-center gap-1 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer w-16",
+      "itemActive": "flex flex-col items-center justify-center gap-1 text-black cursor-pointer w-16"
+    }
+  },
+  "media": {
+    "images": {
+      "onboarding_illustration": "Use lucide-react 'Telescope' icon (or similar line-art SVG like 'User'/'Binoculars') with large size (e.g., size={160}), strokeWidth={1} in black color.",
+      "flag_ru": "🇷🇺",
+      "flag_ro": "🇷🇴"
+    }
+  },
+  "instructions_to_main_agent": [
+    "IMPORTANT: Build a mobile-first UI wrapped in the provided 'container' classes (max-w-md mx-auto) to simulate a mobile app on desktop.",
+    "Add <link href=\"https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\"> in index.html.",
+    "Use 'Manrope' for both headings and body texts in tailwind.config.js.",
+    "Follow the exact monochrome aesthetic: pure white/very light lavender backgrounds, deep black text and primary buttons. NO gradients.",
+    "Onboarding Screen: Center the illustration (Lucide icon), bold H1 title below it, Primary black button ('Хочу войти и выполнить заказ'), text secondary button below ('Хочу заказать услугу').",
+    "Phone Login Screen: Light lavender/grey background. Back arrow top left, H1 title ('Ваш номер'). Phone input with flag emoji + country code. Disabled bottom button when empty, active black button & outlined secondary button when filled.",
+    "Add a language toggle (RU/RO) in the top right of appropriate screens.",
+    "Ensure generous spacing (p-6, gap-6) between elements. Use flex-1 to push CTA buttons to the bottom of the screen.",
+    "Add 'data-testid' to all interactive elements for automated testing."
+  ]
+}
