@@ -21,8 +21,9 @@ sudo apt install -y python3 python3-venv python3-pip nodejs npm nginx
 
 ```bash
 cd /var/www/proffi/backend
-cp .env.example .env
+cp env.vps.template .env
 nano .env
+# (подробные комментарии — в .env.example)
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
@@ -30,7 +31,7 @@ pip install -r requirements.txt
 deactivate
 ```
 
-Шаблон переменных для VPS: `backend/.env.example` (скопируйте в `backend/.env` и подставьте секреты).
+Шаблон для быстрого старта на VPS: `backend/env.vps.template` → `backend/.env`. Расшифровка полей: `backend/.env.example`.
 
 Обязательно проверьте:
 - `APP_ENV=production`
