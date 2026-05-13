@@ -37,14 +37,31 @@ def send_otp_email(to_addr: str, otp: str) -> None:
     msg["To"] = to_addr
     msg.set_content(body)
 
+    ctx = ssl.create_default_context()
+    enc = (os.environ.get("SMTP_ENCRYPTION") or "").strip().lower()
+    if enc in ("starttls",):
+        enc = "tls"
+    if enc not in ("tls", "ssl", "none", "off", ""):
+        enc = "tls"
+    if not enc:
+        legacy = os.environ.get("SMTP_USE_TLS", "true").lower()
+        enc = "none" if legacy in ("0", "false", "no") else "tls"
+    if enc in ("off", "none"):
+        enc = "none"
+
     try:
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP(host, port, timeout=30) as smtp:
-            if os.environ.get("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes"):
-                smtp.starttls(context=ctx)
-            if user:
-                smtp.login(user, password)
-            smtp.send_message(msg)
+        if enc == "ssl" or port == 465:
+            with smtplib.SMTP_SSL(host, port, context=ctx, timeout=30) as smtp:
+                if user:
+                    smtp.login(user, password)
+                smtp.send_message(msg)
+        else:
+            with smtplib.SMTP(host, port, timeout=30) as smtp:
+                if enc == "tls":
+                    smtp.starttls(context=ctx)
+                if user:
+                    smtp.login(user, password)
+                smtp.send_message(msg)
     except Exception as e:
         logger.exception("SMTP ошибка, fallback в stdout: %s", e)
         print(f"OTP CODE ({to_addr}): {otp}", flush=True)
