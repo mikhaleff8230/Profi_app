@@ -30,11 +30,13 @@ pip install -r requirements.txt
 deactivate
 ```
 
-Required `.env` values:
+Шаблон переменных для VPS: `backend/.env.example` (скопируйте в `backend/.env` и подставьте секреты).
+
+Обязательно проверьте:
 - `APP_ENV=production`
-- `JWT_SECRET=<strong_random_secret>`
-- `CORS_ORIGINS=https://<your-domain>,http://<your-vps-ip>`
-- Optional: `DATABASE_URL=sqlite+aiosqlite:////var/www/proffi/backend/app.db` (по умолчанию — `backend/app.db`)
+- `DATABASE_URL=sqlite+aiosqlite:////var/www/proffi/backend/app.db` (или не задавайте — тогда `app.db` рядом с `db.py`)
+- `JWT_SECRET`, `ADMIN_TOKEN` — длинные случайные строки
+- `CORS_ORIGINS` — ваши `https://...` фронта и админки
 
 База: **SQLite** (`app.db`), таблицы создаются при старте. Бэкап — копия файла `app.db`.
 
