@@ -12,7 +12,7 @@ import requests
 import jwt
 import bcrypt
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Header, Query
 from starlette.middleware.cors import CORSMiddleware
@@ -43,20 +43,50 @@ def _mongo_uri() -> str:
     return raw or "mongodb://localhost:27017"
 
 
+def _build_motor_kwargs(mongo_uri: str) -> Tuple[dict, bool]:
+    """
+    Явные TLS-настройки для Motor (совместимо с PyMongo MongoClient).
+    Для mongodb+srv (Atlas): tls=True; пока не задан MONGO_TLS_STRICT — tlsAllowInvalidCertificates=True
+    (обход TLSV1_ALERT_INTERNAL_ERROR на части OpenSSL 3 / VPS).
+    """
+    strict = os.environ.get("MONGO_TLS_STRICT", "").lower() in ("1", "true", "yes")
+    kw: dict = {
+        "maxPoolSize": _env_int("MONGO_MAX_POOL_SIZE", 20),
+        "minPoolSize": 1,
+        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 5000),
+    }
+    if mongo_uri.startswith("mongodb+srv://"):
+        kw["tls"] = True
+        if not strict:
+            kw["tlsAllowInvalidCertificates"] = True
+    return kw, strict
+
+
 # ---------- Config ----------
 APP_ENV = os.environ.get("APP_ENV", "development").lower()
 IS_PROD = APP_ENV == "production"
 
 # ---------- Mongo ----------
 mongo_url = _mongo_uri()
-mongo_pool_size = _env_int("MONGO_MAX_POOL_SIZE", 20)
-mongo_server_selection_ms = _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 10000)
-client = AsyncIOMotorClient(
-    mongo_url,
-    maxPoolSize=mongo_pool_size,
-    minPoolSize=1,
-    serverSelectionTimeoutMS=mongo_server_selection_ms,
+_motor_kw, _mongo_tls_strict = _build_motor_kwargs(mongo_url)
+logger.info(
+    "MongoDB Motor: creating client (serverSelectionTimeoutMS=%s, maxPoolSize=%s, srv=%s, MONGO_TLS_STRICT=%s)",
+    _motor_kw["serverSelectionTimeoutMS"],
+    _motor_kw["maxPoolSize"],
+    mongo_url.startswith("mongodb+srv://"),
+    _mongo_tls_strict,
 )
+if mongo_url.startswith("mongodb+srv://") and not _mongo_tls_strict:
+    logger.warning(
+        "MongoDB TLS: tls=True, tlsAllowInvalidCertificates=True (временно). "
+        "После исправления OpenSSL/CA задайте MONGO_TLS_STRICT=true в .env."
+    )
+elif mongo_url.startswith("mongodb+srv://") and _mongo_tls_strict:
+    logger.info("MongoDB TLS: tls=True, проверка сертификатов включена (MONGO_TLS_STRICT=true)")
+else:
+    logger.info("MongoDB: локальный URI без принудительного tls= (dev)")
+client = AsyncIOMotorClient(mongo_url, **_motor_kw)
+logger.info("MongoDB Motor client created (первое подключение при первом запросе)")
 db = client[os.environ.get("DB_NAME", "test_database")]
 
 from seed import run_seed
@@ -875,16 +905,18 @@ async def root():
 @app.get("/health")
 async def health():
     """
-    Проверка Mongo в реальном времени (ping), а не только флаг со старта процесса.
-    Иначе после временного сбоя или до появления OPENSSL_CONF остаётся вечный degraded.
+    Живой ping к Mongo (не только флаг со старта).
+    TLS для mongodb+srv настраивается при создании Motor (см. _build_motor_kwargs).
     """
     mongo_live = "degraded"
     try:
-        await client.admin.command("ping")
+        ping = await client.admin.command("ping")
         mongo_live = "connected"
         app.state.mongo_ok = True
-    except Exception:
+        logger.debug("/health mongo ping ok: %s", ping)
+    except Exception as e:
         app.state.mongo_ok = False
+        logger.warning("/health mongo ping failed: %s", e)
     return {"status": "ok", "env": APP_ENV, "mongo": mongo_live}
 
 
@@ -899,14 +931,14 @@ async def _ensure_unique_id_index(collection_name: str) -> None:
 @app.on_event("startup")
 async def on_startup():
     app.state.mongo_ok = False
-    logger.info("MongoDB connection attempt...")
+    logger.info("MongoDB connection attempt (admin.command ping)...")
     try:
-        await client.admin.command("ping")
+        ping = await client.admin.command("ping")
+        logger.info("MongoDB connected successfully: ping=%s", ping)
     except Exception as e:
         logger.error("MongoDB connection failed: %s", e)
         logger.warning("Running in fallback mode (MongoDB unavailable)")
         return
-    logger.info("MongoDB connected successfully")
     app.state.mongo_ok = True
     try:
         await db.users.create_index("phone", unique=True)
