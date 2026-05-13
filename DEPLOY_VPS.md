@@ -52,6 +52,8 @@ Required frontend `.env` value:
 
 ## 5) systemd service (backend)
 
+Файл unit подключает **`OPENSSL_CONF`** для стабильного TLS к **MongoDB Atlas** (OpenSSL 3 на Ubuntu). Конфиг лежит в репозитории: `deploy/ssl/openssl-mongodb.cnf`.
+
 ```bash
 sudo cp /var/www/proffi/deploy/systemd/proffi-backend.service /etc/systemd/system/
 sudo systemctl daemon-reload

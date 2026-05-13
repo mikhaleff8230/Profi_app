@@ -1,0 +1,13 @@
+# OpenSSL 3 + MongoDB Atlas: снизить SECLEVEL для успешного TLS handshake на части VPS.
+# Подключается через: Environment=OPENSSL_CONF=... в systemd unit proffi-backend.
+openssl_conf = openssl_init
+
+[openssl_init]
+ssl_conf = ssl_sect
+
+[ssl_sect]
+system_default = system_default_sect
+
+[system_default_sect]
+MinProtocol = TLSv1.2
+CipherString = DEFAULT:@SECLEVEL=1
