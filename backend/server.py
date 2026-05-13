@@ -16,21 +16,46 @@ from typing import List, Optional
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Header, Query
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import ConnectionFailure, NetworkTimeout, ServerSelectionTimeoutError
 from pydantic import BaseModel, Field
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "")
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        logger.warning("Invalid integer for %s=%r, using default %s", name, raw, default)
+        return default
+
+
+def _mongo_uri() -> str:
+    raw = (os.environ.get("MONGO_URL") or "mongodb://localhost:27017").strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
+        raw = raw[1:-1].strip()
+    return raw or "mongodb://localhost:27017"
+
 
 # ---------- Config ----------
 APP_ENV = os.environ.get("APP_ENV", "development").lower()
 IS_PROD = APP_ENV == "production"
 
 # ---------- Mongo ----------
-mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-mongo_pool_size = int(os.environ.get("MONGO_MAX_POOL_SIZE", "20"))
+mongo_url = _mongo_uri()
+mongo_pool_size = _env_int("MONGO_MAX_POOL_SIZE", 20)
+mongo_server_selection_ms = _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 10000)
 client = AsyncIOMotorClient(
     mongo_url,
     maxPoolSize=mongo_pool_size,
     minPoolSize=1,
-    serverSelectionTimeoutMS=5000,
+    serverSelectionTimeoutMS=mongo_server_selection_ms,
 )
 db = client[os.environ.get("DB_NAME", "test_database")]
 
@@ -260,6 +285,19 @@ app = FastAPI(
     docs_url=None if IS_PROD else "/docs",
     redoc_url=None if IS_PROD else "/redoc",
 )
+
+
+async def _mongo_unavailable_handler(request: Request, exc: Exception):
+    logger.warning("Mongo driver error on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database unavailable", "error": type(exc).__name__, "message": str(exc)},
+    )
+
+
+for _exc_cls in (ServerSelectionTimeoutError, ConnectionFailure, NetworkTimeout):
+    app.add_exception_handler(_exc_cls, _mongo_unavailable_handler)
+
 api_router = APIRouter(prefix="/api")
 
 
@@ -834,24 +872,51 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "env": APP_ENV}
+    mongo = getattr(app.state, "mongo_ok", None)
+    if mongo is True:
+        m = "connected"
+    elif mongo is False:
+        m = "degraded"
+    else:
+        m = "starting"
+    return {"status": "ok", "env": APP_ENV, "mongo": m}
+
+
+async def _ensure_unique_id_index(collection_name: str) -> None:
+    try:
+        await db[collection_name].create_index("id", unique=True)
+    except Exception as e:
+        logger.warning("create_index(%s id unique): %s", collection_name, e)
 
 
 # ---------- Startup ----------
 @app.on_event("startup")
 async def on_startup():
-    await db.users.create_index("phone", unique=True)
-    await db.tasks.create_index("customer_id")
-    await db.tasks.create_index("category")
-    await db.applications.create_index([("task_id", 1), ("specialist_id", 1)], unique=True)
-    await db.messages.create_index("chat_id")
-    await db.chats.create_index([("customer_id", 1), ("specialist_id", 1)])
-    await db.files.create_index("storage_path")
-    await db.categories.create_index("id", unique=True)
-    await db.filters.create_index("id", unique=True)
-    init_storage()
-    if os.environ.get("ENABLE_TEST_SEED", "false").lower() == "true":
-        await seed_test_user()
+    app.state.mongo_ok = False
+    logger.info("MongoDB connection attempt...")
+    try:
+        await client.admin.command("ping")
+    except Exception as e:
+        logger.error("MongoDB connection failed: %s", e)
+        logger.warning("Running in fallback mode (MongoDB unavailable)")
+        return
+    logger.info("MongoDB connected successfully")
+    app.state.mongo_ok = True
+    try:
+        await db.users.create_index("phone", unique=True)
+        await db.tasks.create_index("customer_id")
+        await db.tasks.create_index("category")
+        await db.applications.create_index([("task_id", 1), ("specialist_id", 1)], unique=True)
+        await db.messages.create_index("chat_id")
+        await db.chats.create_index([("customer_id", 1), ("specialist_id", 1)])
+        await db.files.create_index("storage_path")
+        await _ensure_unique_id_index("categories")
+        await _ensure_unique_id_index("filters")
+        init_storage()
+        if os.environ.get("ENABLE_TEST_SEED", "false").lower() == "true":
+            await seed_test_user()
+    except Exception as e:
+        logger.error("MongoDB startup tasks failed: %s", e)
 
 
 async def seed_test_user():
@@ -1092,9 +1157,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
@@ -1105,6 +1167,6 @@ if __name__ == "__main__":
     import uvicorn
 
     host = os.environ.get("HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", "8001"))
+    port = _env_int("PORT", 8001)
     reload_enabled = os.environ.get("RELOAD", "false" if IS_PROD else "true").lower() == "true"
     uvicorn.run("server:app", host=host, port=port, reload=reload_enabled)
