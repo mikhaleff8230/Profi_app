@@ -1285,10 +1285,21 @@ async def on_startup():
         await conn.run_sync(Base.metadata.create_all)
     logger.info("SQLite schema ready (DATABASE_URL=%s)", os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./app.db"))
     init_storage()
-    if os.environ.get("ENABLE_TEST_SEED", "false").lower() == "true":
-        async with async_session_maker() as session:
-            await seed_test_user(session)
-            await session.commit()
+    async with async_session_maker() as session:
+        try:
+            cnt = await session.scalar(select(func.count()).select_from(UserORM))
+            if (cnt or 0) == 0:
+                from seed import run_seed as _run_seed
+
+                summary = await _run_seed(session, hash_password, now_iso, normalize_phone)
+                await session.commit()
+                logger.info("Startup: no users in DB — applied seed (summary=%s)", summary)
+            elif os.environ.get("ENABLE_TEST_SEED", "false").lower() == "true":
+                await seed_test_user(session)
+                await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.exception("Startup user seed failed")
 
 
 @app.on_event("shutdown")

@@ -63,7 +63,7 @@ npm ci
 npm run build
 ```
 
-Нужен **`VITE_API_BASE`** — origin сайта, где доступен тот же API (обычно основной домен с Nginx `/api/`, например `https://proffi.sancan.ru`). Без `/api` в конце.
+Нужен **`VITE_API_BASE`** только если админка **не** на поддомене `admin.*`. Если URL вида `https://admin.proffi.sancan.ru`, сборка сама подставит API на `https://proffi.sancan.ru` (см. `admin/src/services/api.js`). Иначе задайте origin основного сайта с Nginx `/api/`, без `/api` в конце.
 
 Не задавайте в `.env` продакшена **`VITE_ADMIN_TOKEN`** с реальным секретом: значения `VITE_*` попадают в собранный JS. Токен из `ADMIN_TOKEN` бэкенда вводите на экране входа в админке. Шаблон: `admin/env.vps.template`, комментарии — `admin/.env.example`.
 

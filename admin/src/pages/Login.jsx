@@ -1,17 +1,32 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../services/api.js";
 
 export default function Login() {
   const navigate = useNavigate();
   const [user, setUser] = useState("admin");
   const [password, setPassword] = useState(() => import.meta.env.VITE_ADMIN_TOKEN || "admin");
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem("admin_token")?.trim()) navigate("/", { replace: true });
+    const t = localStorage.getItem("admin_token")?.trim();
+    if (!t) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await api.get("/api/admin/stats");
+        if (!cancelled) navigate("/", { replace: true });
+      } catch {
+        localStorage.removeItem("admin_token");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     setErr("");
     if (user.trim() !== "admin") {
@@ -23,8 +38,27 @@ export default function Login() {
       setErr("Введите пароль (токен)");
       return;
     }
-    localStorage.setItem("admin_token", token);
-    navigate("/", { replace: true });
+    setLoading(true);
+    try {
+      localStorage.setItem("admin_token", token);
+      await api.get("/api/admin/stats");
+      navigate("/", { replace: true });
+    } catch (ex) {
+      localStorage.removeItem("admin_token");
+      const status = ex.response?.status;
+      const detail = ex.response?.data?.detail;
+      if (status === 401) {
+        setErr("Неверный токен — должен совпадать с ADMIN_TOKEN в .env бэкенда.");
+      } else if (!ex.response) {
+        setErr(
+          "Нет ответа от API. Убедитесь, что основной сайт доступен и CORS разрешает admin-домен, либо задайте VITE_API_BASE при сборке."
+        );
+      } else {
+        setErr(typeof detail === "string" ? detail : ex.message || "Ошибка запроса");
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -48,8 +82,8 @@ export default function Login() {
           />
         </div>
         {err ? <div className="err">{err}</div> : null}
-        <button type="submit" className="primary" style={{ width: "100%", marginTop: "1rem" }}>
-          Войти
+        <button type="submit" className="primary" style={{ width: "100%", marginTop: "1rem" }} disabled={loading}>
+          {loading ? "Проверка…" : "Войти"}
         </button>
       </form>
     </div>

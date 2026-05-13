@@ -1,6 +1,23 @@
 import axios from "axios";
 
-const baseURL = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+/**
+ * Если VITE_API_BASE не задан при сборке, но админка открыта на admin.*,
+ * API берём с основного домена (тот же хост без префикса admin.), где Nginx отдаёт /api.
+ * Пример: https://admin.proffi.sancan.ru → https://proffi.sancan.ru
+ */
+function resolveApiBase() {
+  const env = (import.meta.env.VITE_API_BASE || "").trim().replace(/\/$/, "");
+  if (env) return env;
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host.startsWith("admin.")) {
+      return `${window.location.protocol}//${host.slice("admin.".length)}`;
+    }
+  }
+  return "";
+}
+
+const baseURL = resolveApiBase();
 
 export const api = axios.create({
   baseURL,
@@ -18,7 +35,8 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("admin_token");
-      if (!window.location.pathname.startsWith("/login")) {
+      const path = window.location.pathname || "";
+      if (!path.startsWith("/login")) {
         window.location.href = "/login";
       }
     }
