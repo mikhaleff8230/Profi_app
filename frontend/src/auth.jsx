@@ -73,7 +73,7 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (payload) => {
-    const { data } = await api.post("/auth/register", payload);
+    const { data } = await api.post("/auth/register-phone", payload);
     localStorage.setItem("token", data.token);
     setUser(withDevMock(data.user));
     return data.user;

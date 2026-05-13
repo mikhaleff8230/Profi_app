@@ -41,7 +41,7 @@ def test_categories(ctx):
 
 # ---------- Auth ----------
 def test_register_customer(ctx):
-    r = ctx["s"].post(f"{API}/auth/register", json={
+    r = ctx["s"].post(f"{API}/auth/register-phone", json={
         "phone": ctx["cust_phone"], "password": "pass1234",
         "name": "Customer One", "role": "customer", "city": "Chisinau"
     })
@@ -54,7 +54,7 @@ def test_register_customer(ctx):
 
 
 def test_register_specialist(ctx):
-    r = ctx["s"].post(f"{API}/auth/register", json={
+    r = ctx["s"].post(f"{API}/auth/register-phone", json={
         "phone": ctx["spec_phone"], "password": "pass1234",
         "name": "Spec One", "role": "specialist", "city": "Chisinau"
     })
@@ -64,7 +64,7 @@ def test_register_specialist(ctx):
     ctx["spec_token"] = d["token"]
     ctx["spec_id"] = d["user"]["id"]
 
-    r2 = ctx["s"].post(f"{API}/auth/register", json={
+    r2 = ctx["s"].post(f"{API}/auth/register-phone", json={
         "phone": ctx["spec2_phone"], "password": "pass1234",
         "name": "Spec Two", "role": "specialist"
     })
@@ -74,7 +74,7 @@ def test_register_specialist(ctx):
 
 
 def test_register_duplicate_phone(ctx):
-    r = ctx["s"].post(f"{API}/auth/register", json={
+    r = ctx["s"].post(f"{API}/auth/register-phone", json={
         "phone": ctx["cust_phone"], "password": "pass1234",
         "name": "Dup", "role": "customer"
     })
@@ -229,7 +229,7 @@ def test_apply_to_non_open_task(ctx):
     # spec2 already applied — duplicate triggers 400 first. Use spec_token but it's already applied too.
     # So register a fresh specialist to truly test the non-open branch.
     fresh_phone = _phone() + "7"
-    reg = ctx["s"].post(f"{API}/auth/register", json={
+    reg = ctx["s"].post(f"{API}/auth/register-phone", json={
         "phone": fresh_phone, "password": "pass1234",
         "name": "Spec Fresh", "role": "specialist"
     })
@@ -595,7 +595,7 @@ def test_specialist_info_not_applied(ctx):
     """A fresh specialist who has NOT applied to geo_task_near:
        has_applied=false, rank == total_applications+1."""
     fresh_phone = _phone() + "5"
-    reg = ctx["s"].post(f"{API}/auth/register", json={
+    reg = ctx["s"].post(f"{API}/auth/register-phone", json={
         "phone": fresh_phone, "password": "pass1234",
         "name": "Spec NoApply", "role": "specialist",
     })

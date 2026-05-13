@@ -4,19 +4,20 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
+import secrets
 import logging
 import math
 import os
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional, Union
 
 import bcrypt
 import jwt
 import requests
 from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, Request, Response, UploadFile
-from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, or_, select, text, update
+from pydantic import BaseModel, EmailStr, Field, model_validator
+from sqlalchemy import delete, func, inspect as sa_inspect, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +35,8 @@ from models import (
     TaskORM,
     UserORM,
 )
+
+from email_otp import normalize_email, send_otp_email
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -189,10 +192,12 @@ def user_to_public(u: dict) -> dict:
         "lng": u.get("lng"),
         "last_seen": u.get("last_seen"),
         "created_at": u["created_at"],
+        "email": u.get("email"),
+        "is_verified": bool(u.get("email_verified")),
     }
 
 
-class RegisterRequest(BaseModel):
+class RegisterPhoneRequest(BaseModel):
     phone: str
     password: str
     name: str
@@ -200,9 +205,43 @@ class RegisterRequest(BaseModel):
     city: Optional[str] = None
 
 
-class LoginRequest(BaseModel):
-    phone: str
-    password: str
+class RegisterEmailRequest(BaseModel):
+    email: EmailStr
+    role: str
+    name: Optional[str] = ""
+
+
+class VerifyOtpRequest(BaseModel):
+    email: EmailStr
+    otp_code: str
+
+
+class LoginUnifiedRequest(BaseModel):
+    """Expo: {email}. Web (legacy): {phone, password}."""
+
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    password: Optional[str] = None
+
+    @model_validator(mode="after")
+    def one_mode(self):
+        has_email = self.email is not None and str(self.email).strip() != ""
+        has_phone = self.phone is not None and str(self.phone).strip() != ""
+        if has_email and not has_phone:
+            return self
+        if has_phone and self.password is not None and str(self.password) != "":
+            return self
+        raise ValueError("Provide email OR (phone and password)")
+
+
+class RegisterOtpResponse(BaseModel):
+    status: Literal["otp_sent"] = "otp_sent"
+    email: str
+
+
+class LoginOtpPendingResponse(BaseModel):
+    status: Literal["otp_sent"] = "otp_sent"
+    email: str
 
 
 class UserPublic(BaseModel):
@@ -220,6 +259,8 @@ class UserPublic(BaseModel):
     lng: Optional[float] = None
     last_seen: Optional[str] = None
     created_at: str
+    email: Optional[str] = None
+    is_verified: bool = False
 
 
 class AuthResponse(BaseModel):
@@ -335,8 +376,95 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-@api_router.post("/auth/register", response_model=AuthResponse)
-async def register(body: RegisterRequest, session: AsyncSession = Depends(get_db)):
+def _generate_otp_code() -> str:
+    return f"{secrets.randbelow(900000) + 100000:06d}"
+
+
+def _otp_expires_iso() -> str:
+    return (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+
+
+def _parse_otp_expiry(raw: Optional[str]) -> Optional[datetime]:
+    if not raw:
+        return None
+    s = raw.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+async def _allocate_placeholder_phone(session: AsyncSession) -> str:
+    for _ in range(50):
+        suffix = "".join(secrets.choice("0123456789") for _ in range(9))
+        candidate = f"+990{suffix}"
+        if not await session.scalar(select(UserORM).where(UserORM.phone == candidate)):
+            return candidate
+    raise HTTPException(status_code=500, detail="Could not allocate internal phone placeholder")
+
+
+async def migrate_users_otp_columns() -> None:
+    async with engine.begin() as conn:
+
+        def _upgrade(sync_conn):
+            insp = sa_inspect(sync_conn)
+            cols = {c["name"] for c in insp.get_columns("users")}
+            if "otp_code" not in cols:
+                sync_conn.execute(text("ALTER TABLE users ADD COLUMN otp_code VARCHAR(16)"))
+            if "otp_expires_at" not in cols:
+                sync_conn.execute(text("ALTER TABLE users ADD COLUMN otp_expires_at VARCHAR(64)"))
+
+        await conn.run_sync(_upgrade)
+
+
+@api_router.post("/auth/register", response_model=RegisterOtpResponse)
+async def register_with_email(body: RegisterEmailRequest, session: AsyncSession = Depends(get_db)):
+    if body.role not in ("customer", "specialist"):
+        raise HTTPException(status_code=400, detail="Invalid role")
+    em = normalize_email(str(body.email))
+    otp = _generate_otp_code()
+    exp = _otp_expires_iso()
+    existing = await session.scalar(select(UserORM).where(UserORM.email == em))
+    if existing:
+        if existing.email_verified:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        await session.execute(
+            update(UserORM)
+            .where(UserORM.id == existing.id)
+            .values(otp_code=otp, otp_expires_at=exp)
+        )
+        await session.commit()
+        send_otp_email(em, otp)
+        return RegisterOtpResponse(email=em)
+    phone = await _allocate_placeholder_phone(session)
+    user_id = str(uuid.uuid4())
+    nm = (body.name or "").strip() or "User"
+    u = UserORM(
+        id=user_id,
+        phone=phone,
+        password_hash=hash_password(secrets.token_urlsafe(32)),
+        name=nm,
+        role=body.role,
+        city=None,
+        rating=0.0,
+        reviews_count=0,
+        bio=None,
+        services=[],
+        avatar=None,
+        created_at=now_iso(),
+        email=em,
+        email_verified=False,
+        otp_code=otp,
+        otp_expires_at=exp,
+    )
+    session.add(u)
+    await session.commit()
+    send_otp_email(em, otp)
+    return RegisterOtpResponse(email=em)
+
+
+@api_router.post("/auth/register-phone", response_model=AuthResponse)
+async def register_with_phone(body: RegisterPhoneRequest, session: AsyncSession = Depends(get_db)):
     if body.role not in ("customer", "specialist"):
         raise HTTPException(status_code=400, detail="Invalid role")
     if len(body.password) < 4:
@@ -366,14 +494,54 @@ async def register(body: RegisterRequest, session: AsyncSession = Depends(get_db
     return {"token": token, "user": user_to_public(user_row(u))}
 
 
-@api_router.post("/auth/login", response_model=AuthResponse)
-async def login(body: LoginRequest, session: AsyncSession = Depends(get_db)):
-    phone = normalize_phone(body.phone)
+@api_router.post("/auth/verify", response_model=AuthResponse)
+async def verify_email_otp(body: VerifyOtpRequest, session: AsyncSession = Depends(get_db)):
+    em = normalize_email(str(body.email))
+    u = await session.scalar(select(UserORM).where(UserORM.email == em))
+    if not u:
+        raise HTTPException(status_code=400, detail="Invalid email or code")
+    if u.email_verified:
+        token = create_access_token(u.id, u.role)
+        return {"token": token, "user": user_to_public(user_row(u))}
+    code = (body.otp_code or "").strip()
+    if not u.otp_code or code != str(u.otp_code).strip():
+        raise HTTPException(status_code=400, detail="Invalid email or code")
+    exp_at = _parse_otp_expiry(u.otp_expires_at)
+    if not exp_at or datetime.now(timezone.utc) > exp_at:
+        raise HTTPException(status_code=400, detail="Code expired")
+    await session.execute(
+        update(UserORM)
+        .where(UserORM.id == u.id)
+        .values(email_verified=True, otp_code=None, otp_expires_at=None)
+    )
+    await session.commit()
+    u2 = await session.scalar(select(UserORM).where(UserORM.id == u.id))
+    token = create_access_token(u2.id, u2.role)
+    return {"token": token, "user": user_to_public(user_row(u2))}
+
+
+@api_router.post("/auth/login", response_model=Union[AuthResponse, LoginOtpPendingResponse])
+async def login_unified(body: LoginUnifiedRequest, session: AsyncSession = Depends(get_db)):
+    if body.email is not None and str(body.email).strip() != "":
+        em = normalize_email(str(body.email))
+        u = await session.scalar(select(UserORM).where(UserORM.email == em))
+        if not u:
+            raise HTTPException(status_code=401, detail="Invalid email or user not found")
+        if u.email_verified:
+            token = create_access_token(u.id, u.role)
+            return AuthResponse(token=token, user=user_to_public(user_row(u)))
+        otp = _generate_otp_code()
+        exp = _otp_expires_iso()
+        await session.execute(update(UserORM).where(UserORM.id == u.id).values(otp_code=otp, otp_expires_at=exp))
+        await session.commit()
+        send_otp_email(em, otp)
+        return LoginOtpPendingResponse(email=em)
+    phone = normalize_phone(body.phone or "")
     u = await session.scalar(select(UserORM).where(UserORM.phone == phone))
-    if not u or not verify_password(body.password, u.password_hash):
+    if not u or not verify_password(body.password or "", u.password_hash):
         raise HTTPException(status_code=401, detail="Invalid phone or password")
     token = create_access_token(u.id, u.role)
-    return {"token": token, "user": user_to_public(user_row(u))}
+    return AuthResponse(token=token, user=user_to_public(user_row(u)))
 
 
 @api_router.get("/auth/me", response_model=UserPublic)
@@ -1260,7 +1428,15 @@ def parse_cors_origins() -> List[str]:
         "http://127.0.0.1:5173",
         "http://localhost:8081",
         "http://127.0.0.1:8081",
+        "http://localhost:19000",
+        "http://localhost:19006",
+        "http://127.0.0.1:19000",
+        "http://127.0.0.1:19006",
+        "http://localhost",
+        "http://127.0.0.1",
     ]
+    if not IS_PROD and os.environ.get("CORS_ALLOW_ALL_DEV", "").lower() in ("1", "true", "yes"):
+        return ["*"]
     frontend_url = (os.environ.get("FRONTEND_URL") or "").strip()
     if frontend_url:
         defaults.append(frontend_url)
@@ -1283,6 +1459,7 @@ app.add_middleware(
 async def on_startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await migrate_users_otp_columns()
     logger.info("SQLite schema ready (DATABASE_URL=%s)", os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./app.db"))
     init_storage()
     async with async_session_maker() as session:

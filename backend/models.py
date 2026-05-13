@@ -33,6 +33,8 @@ class UserORM(Base):
     first_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    otp_code: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    otp_expires_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     is_test_user: Mapped[bool] = mapped_column(Boolean, default=False)
     tester_role: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
