@@ -1,0 +1,22 @@
+[Unit]
+Description=Proffi FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/proffi/backend
+EnvironmentFile=/var/www/proffi/backend/.env
+ExecStart=/var/www/proffi/backend/.venv/bin/uvicorn server:app --host 127.0.0.1 --port 8001 --workers 1
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# Low-RAM friendly limits (1 core / 2GB VPS)
+MemoryHigh=700M
+MemoryMax=900M
+
+[Install]
+WantedBy=multi-user.target

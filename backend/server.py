@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
 import os
 import logging
@@ -19,13 +19,23 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
+# ---------- Config ----------
+APP_ENV = os.environ.get("APP_ENV", "development").lower()
+IS_PROD = APP_ENV == "production"
+
 # ---------- Mongo ----------
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+mongo_pool_size = int(os.environ.get("MONGO_MAX_POOL_SIZE", "20"))
+client = AsyncIOMotorClient(
+    mongo_url,
+    maxPoolSize=mongo_pool_size,
+    minPoolSize=1,
+    serverSelectionTimeoutMS=5000,
+)
+db = client[os.environ.get("DB_NAME", "test_database")]
 
 JWT_ALGORITHM = "HS256"
-JWT_SECRET = os.environ['JWT_SECRET']
+JWT_SECRET = os.environ.get("JWT_SECRET", "dev-jwt-secret-change-me")
 
 # Object storage
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
@@ -245,7 +255,11 @@ class ChatPublic(BaseModel):
 
 
 # ---------- App ----------
-app = FastAPI()
+app = FastAPI(
+    title="Marketplace API",
+    docs_url=None if IS_PROD else "/docs",
+    redoc_url=None if IS_PROD else "/redoc",
+)
 api_router = APIRouter(prefix="/api")
 
 
@@ -811,6 +825,11 @@ async def root():
     return {"status": "ok", "service": "marketplace-api"}
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok", "env": APP_ENV}
+
+
 # ---------- Startup ----------
 @app.on_event("startup")
 async def on_startup():
@@ -822,7 +841,8 @@ async def on_startup():
     await db.chats.create_index([("customer_id", 1), ("specialist_id", 1)])
     await db.files.create_index("storage_path")
     init_storage()
-    await seed_test_user()
+    if os.environ.get("ENABLE_TEST_SEED", "false").lower() == "true":
+        await seed_test_user()
 
 
 async def seed_test_user():
@@ -876,11 +896,31 @@ async def seed_test_user():
 
 app.include_router(api_router)
 
+def parse_cors_origins() -> List[str]:
+    raw = (os.environ.get("CORS_ORIGINS") or "").strip()
+    if raw:
+        items = [i.strip() for i in raw.split(",") if i.strip()]
+        if items:
+            return items
+    defaults = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+    ]
+    frontend_url = (os.environ.get("FRONTEND_URL") or "").strip()
+    if frontend_url:
+        defaults.append(frontend_url)
+    return defaults
+
+
+cors_origins = parse_cors_origins()
+allow_all_origins = "*" in cors_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_origin_regex=".*",
+    allow_credentials=not allow_all_origins,
+    allow_origins=["*"] if allow_all_origins else cors_origins,
+    allow_origin_regex=None if allow_all_origins else os.environ.get("CORS_ORIGIN_REGEX"),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -892,3 +932,12 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8001"))
+    reload_enabled = os.environ.get("RELOAD", "false" if IS_PROD else "true").lower() == "true"
+    uvicorn.run("server:app", host=host, port=port, reload=reload_enabled)

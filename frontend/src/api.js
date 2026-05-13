@@ -1,7 +1,20 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API = `${BACKEND_URL}/api`;
+function trimTrailingSlash(url) {
+  return url.replace(/\/+$/, "");
+}
+
+function resolveBackendUrl() {
+  const explicit = process.env.REACT_APP_API_URL?.trim() || process.env.REACT_APP_BACKEND_URL?.trim();
+  if (explicit) return trimTrailingSlash(explicit);
+
+  const backendPort = process.env.REACT_APP_API_PORT || process.env.REACT_APP_BACKEND_PORT || "8001";
+  const browserHost = typeof window !== "undefined" ? window.location.hostname : "localhost";
+  return `http://${browserHost}:${backendPort}`;
+}
+
+const BACKEND_URL = resolveBackendUrl();
+export const API = `${trimTrailingSlash(BACKEND_URL)}/api`;
 
 export const api = axios.create({ baseURL: API });
 
