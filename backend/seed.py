@@ -1,34 +1,34 @@
 """
-Initial data seed for MongoDB (Atlas / local).
-Safe to run multiple times: upserts by stable keys (phone, category id, filter id).
+Начальные данные для SQLite (идемпотентно).
 
-Run from project root:
+CLI:
   cd backend && .venv/bin/python -m seed
 
-Or trigger via API: POST /api/admin/seed (header X-Admin-Token).
+API: POST /api/admin/seed (header X-Admin-Token)
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
-from typing import Any, Callable, Awaitable
+from typing import Any, Callable
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models import CategoryORM, FilterORM, UserORM
 
 logger = logging.getLogger(__name__)
 
-# --- Stable keys for idempotent seed ---
 SEED_ADMIN_PHONE = "+10000000001"
 SEED_CUSTOMER_PHONE = "+10000000002"
 SEED_SPECIALIST_PHONE = "+10000000003"
-
 SEED_ADMIN_EMAIL = "admin@test.com"
-# Plain password for dev seed only — always stored as bcrypt hash (same as production users).
 SEED_ADMIN_PASSWORD = "admin123"
 SEED_CUSTOMER_PASSWORD = "customer123"
 SEED_SPECIALIST_PASSWORD = "specialist123"
 
 
-def _user_doc(
+def _user_orm(
     user_id: str,
     phone: str,
     password_plain: str,
@@ -38,29 +38,26 @@ def _user_doc(
     hash_password: Callable[[str], str],
     now_iso: Callable[[], str],
     email: str | None = None,
-) -> dict[str, Any]:
-    # TODO(production): passwords only via hash_password (already); never log password_plain.
-    doc: dict[str, Any] = {
-        "id": user_id,
-        "phone": phone,
-        "password_hash": hash_password(password_plain),
-        "name": name,
-        "role": role,
-        "city": city,
-        "rating": 0.0,
-        "reviews_count": 0,
-        "bio": None,
-        "services": [],
-        "avatar": None,
-        "created_at": now_iso(),
-    }
-    if email:
-        doc["email"] = email
-    return doc
+) -> UserORM:
+    return UserORM(
+        id=user_id,
+        phone=phone,
+        password_hash=hash_password(password_plain),
+        name=name,
+        role=role,
+        city=city,
+        rating=0.0,
+        reviews_count=0,
+        bio=None,
+        services=[],
+        avatar=None,
+        created_at=now_iso(),
+        email=email,
+    )
 
 
 async def _upsert_user(
-    db: Any,
+    session: AsyncSession,
     phone: str,
     hash_password: Callable[[str], str],
     now_iso: Callable[[], str],
@@ -72,62 +69,68 @@ async def _upsert_user(
     email: str | None = None,
 ) -> str:
     p = normalize_phone(phone)
-    existing = await db.users.find_one({"phone": p})
-    uid = existing["id"] if existing else str(uuid.uuid4())
-    doc = _user_doc(uid, p, password_plain, name, role, city, hash_password, now_iso, email=email)
-    await db.users.update_one(
-        {"phone": p},
-        {"$set": doc},
-        upsert=True,
-    )
-    return "updated" if existing else "inserted"
+    existing = await session.scalar(select(UserORM).where(UserORM.phone == p))
+    uid = existing.id if existing else str(uuid.uuid4())
+    u = _user_orm(uid, p, password_plain, name, role, city, hash_password, now_iso, email=email)
+    if existing:
+        await session.execute(
+            update(UserORM)
+            .where(UserORM.phone == p)
+            .values(
+                password_hash=u.password_hash,
+                name=u.name,
+                role=u.role,
+                city=u.city,
+                email=u.email,
+            )
+        )
+        return "updated"
+    session.add(u)
+    return "inserted"
 
 
-async def _upsert_category(
-    db: Any,
-    cid: str,
-    icon: str,
-    name_ru: str,
-    name_ro: str,
-) -> str:
-    doc = {"id": cid, "icon": icon, "name_ru": name_ru, "name_ro": name_ro}
-    r = await db.categories.update_one({"id": cid}, {"$set": doc}, upsert=True)
-    if r.upserted_id is not None:
-        return "inserted"
-    return "updated"
+async def _upsert_category(session: AsyncSession, cid: str, icon: str, name_ru: str, name_ro: str) -> str:
+    existing = await session.scalar(select(CategoryORM).where(CategoryORM.id == cid))
+    if existing:
+        await session.execute(
+            update(CategoryORM)
+            .where(CategoryORM.id == cid)
+            .values(icon=icon, name_ru=name_ru, name_ro=name_ro)
+        )
+        return "updated"
+    session.add(CategoryORM(id=cid, icon=icon, name_ru=name_ru, name_ro=name_ro))
+    return "inserted"
 
 
 async def _upsert_filter(
-    db: Any,
+    session: AsyncSession,
     fid: str,
     name: str,
     key: str,
     value: str,
     now_iso: Callable[[], str],
 ) -> str:
-    doc = {"id": fid, "name": name, "key": key, "value": value, "created_at": now_iso()}
-    existing = await db.filters.find_one({"id": fid})
+    existing = await session.scalar(select(FilterORM).where(FilterORM.id == fid))
     if existing:
-        await db.filters.update_one({"id": fid}, {"$set": {"name": name, "key": key, "value": value}})
+        await session.execute(
+            update(FilterORM).where(FilterORM.id == fid).values(name=name, key=key, value=value)
+        )
         return "updated"
-    await db.filters.insert_one(doc)
+    session.add(FilterORM(id=fid, name=name, key=key, value=value, created_at=now_iso()))
     return "inserted"
 
 
 async def run_seed(
-    db: Any,
+    session: AsyncSession,
     hash_password: Callable[[str], str],
     now_iso: Callable[[], str],
     normalize_phone: Callable[[str], str],
 ) -> dict[str, Any]:
-    """
-    Idempotent seed. Uses shared Motor `db` from server (singleton client).
-    """
     summary: dict[str, Any] = {"users": [], "categories": [], "filters": []}
 
     summary["users"].append(
         await _upsert_user(
-            db,
+            session,
             SEED_ADMIN_PHONE,
             hash_password,
             now_iso,
@@ -141,7 +144,7 @@ async def run_seed(
     )
     summary["users"].append(
         await _upsert_user(
-            db,
+            session,
             SEED_CUSTOMER_PHONE,
             hash_password,
             now_iso,
@@ -154,7 +157,7 @@ async def run_seed(
     )
     summary["users"].append(
         await _upsert_user(
-            db,
+            session,
             SEED_SPECIALIST_PHONE,
             hash_password,
             now_iso,
@@ -172,10 +175,10 @@ async def run_seed(
         ("seed_it", "Laptop", "IT (seed)", "IT (seed)"),
     ]
     for cid, icon, ru, ro in cats:
-        summary["categories"].append(await _upsert_category(db, cid, icon, ru, ro))
+        summary["categories"].append(await _upsert_category(session, cid, icon, ru, ro))
 
     summary["filters"].append(
-        await _upsert_filter(db, "seed_filter_demo", "Demo filter", "seed", "1", now_iso)
+        await _upsert_filter(session, "seed_filter_demo", "Demo filter", "seed", "1", now_iso)
     )
 
     logger.info("Seed finished: %s", summary)
@@ -184,48 +187,21 @@ async def run_seed(
 
 async def _main_async() -> None:
     from pathlib import Path
+
     from dotenv import load_dotenv
-    import os
-    from motor.motor_asyncio import AsyncIOMotorClient
 
     ROOT = Path(__file__).parent
     load_dotenv(ROOT / ".env")
 
-    def _env_int(name: str, default: int) -> int:
-        raw = os.environ.get(name, "")
-        if not str(raw).strip():
-            return default
-        try:
-            return int(str(raw).strip())
-        except ValueError:
-            return default
+    from datetime import datetime, timezone
 
-    def _mongo_uri() -> str:
-        raw = (os.environ.get("MONGO_URL") or "mongodb://localhost:27017").strip()
-        if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
-            raw = raw[1:-1].strip()
-        return raw or "mongodb://localhost:27017"
-
-    mongo_url = _mongo_uri()
-    motor_kw = {
-        "maxPoolSize": _env_int("MONGO_MAX_POOL_SIZE", 20),
-        "minPoolSize": 1,
-        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 20000),
-    }
-    if mongo_url.startswith("mongodb+srv://"):
-        motor_kw["tls"] = True
-        motor_kw["tlsAllowInvalidCertificates"] = True
-    logging.info("seed CLI: Motor client (srv=%s)", mongo_url.startswith("mongodb+srv://"))
-    client = AsyncIOMotorClient(mongo_url, **motor_kw)
-    db = client[os.environ.get("DB_NAME", "test_database")]
-
-    # Reuse same hashing as server
-    import bcrypt
+    from db import async_session_maker, engine
+    from models import Base
 
     def hash_password(password: str) -> str:
-        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        import bcrypt
 
-    from datetime import datetime, timezone
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     def now_iso() -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -233,13 +209,21 @@ async def _main_async() -> None:
     def normalize_phone(phone: str) -> str:
         return "".join(ch for ch in phone if ch.isdigit() or ch == "+")
 
-    try:
-        out = await run_seed(db, hash_password, now_iso, normalize_phone)
-        print(out)
-    finally:
-        client.close()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with async_session_maker() as session:
+        try:
+            out = await run_seed(session, hash_password, now_iso, normalize_phone)
+            await session.commit()
+            print(out)
+        except Exception:
+            await session.rollback()
+            raise
 
 
 if __name__ == "__main__":
+    import asyncio
+
     logging.basicConfig(level=logging.INFO)
     asyncio.run(_main_async())

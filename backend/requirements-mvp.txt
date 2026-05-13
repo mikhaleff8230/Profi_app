@@ -1,0 +1,7 @@
+# Minimal deps for main.py (Expo MVP, port 8000 only)
+fastapi==0.110.1
+uvicorn==0.25.0
+sqlalchemy>=2.0.25
+python-multipart>=0.0.9
+pillow>=10.2.0
+pydantic>=2.6.4

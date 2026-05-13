@@ -1,0 +1,11 @@
+{
+  "name": "proffi",
+  "private": true,
+  "description": "Root scripts: build frontend + admin",
+  "scripts": {
+    "build": "npm run build:frontend && npm run build:admin",
+    "build:frontend": "npm ci --prefix frontend --no-audit --no-fund && npm run build --prefix frontend",
+    "build:admin": "npm ci --prefix admin --no-audit --no-fund && npm run build --prefix admin",
+    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1"
+  }
+}

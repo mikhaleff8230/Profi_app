@@ -32,10 +32,11 @@ deactivate
 
 Required `.env` values:
 - `APP_ENV=production`
-- `MONGO_URL=<MongoDB Atlas URI>`
-- `DB_NAME=<db_name>`
 - `JWT_SECRET=<strong_random_secret>`
 - `CORS_ORIGINS=https://<your-domain>,http://<your-vps-ip>`
+- Optional: `DATABASE_URL=sqlite+aiosqlite:////var/www/proffi/backend/app.db` (по умолчанию — `backend/app.db`)
+
+База: **SQLite** (`app.db`), таблицы создаются при старте. Бэкап — копия файла `app.db`.
 
 ## 4) Frontend setup
 
@@ -51,8 +52,6 @@ Required frontend `.env` value:
 - `REACT_APP_API_URL=http://<your-vps-ip>` or `https://<your-domain>`
 
 ## 5) systemd service (backend)
-
-Для **Atlas** (`mongodb+srv`) в **`server.py`** заданы **`tls=True`** и **`tlsAllowInvalidCertificates=True`** в Motor — иначе на OpenSSL 3 на части VPS handshake падает с `TLSV1_ALERT_INTERNAL_ERROR`. Дополнительно unit может задавать **`OPENSSL_CONF`** → `deploy/ssl/openssl-mongodb.cnf` (необязательно, если код уже обходит проблему).
 
 ```bash
 sudo cp /var/www/proffi/deploy/systemd/proffi-backend.service /etc/systemd/system/

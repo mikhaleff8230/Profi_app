@@ -8,8 +8,6 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/proffi/backend
 EnvironmentFile=/var/www/proffi/backend/.env
-# MongoDB Atlas + OpenSSL 3 на Ubuntu: без этого часто TLSV1_ALERT_INTERNAL_ERROR при handshake
-Environment=OPENSSL_CONF=/var/www/proffi/deploy/ssl/openssl-mongodb.cnf
 ExecStart=/var/www/proffi/backend/.venv/bin/uvicorn server:app --host 127.0.0.1 --port 8001 --workers 1
 Restart=always
 RestartSec=5

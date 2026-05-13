@@ -16,6 +16,7 @@ __pycache__/
 htmlcov/
 venv/
 .venv/
+.venv-mvp/
 
 # ----- Node / Frontend -----
 node_modules/
@@ -42,6 +43,10 @@ dist/
 build/
 coverage/
 *.log
+
+# Expo MVP backend (SQLite + uploads)
+backend/app.db
+backend/uploads/
 
 # Local project notes (not for server)
 memory/
