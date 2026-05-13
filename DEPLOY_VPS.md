@@ -55,7 +55,7 @@ npm run build
 
 ## 4.0) Expo Go (мобильное приложение)
 
-Каталог **`mobile/`**: React Native + Expo, вход по **email + OTP** и JWT в **SecureStore**. См. **`mobile/README.md`**. Переменная **`EXPO_PUBLIC_API_URL`** — origin API **без** `/api` (как у веб-фронта). В корне репозитория: `npm run mobile:start`.
+Каталог **`mobile/`** (не `backend/`): React Native + Expo, вход по **email + OTP** и JWT в **SecureStore**. См. **`mobile/README.md`**. Переменная **`EXPO_PUBLIC_API_URL`** — origin API **без** `/api`. Из корня репозитория: **`npm run mobile:start`** (или `cd mobile` и `npx expo start`).
 
 ## 4.1) Admin (Vite), если собираете отдельно
 

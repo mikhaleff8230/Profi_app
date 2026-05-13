@@ -1,5 +1,7 @@
 # Proffi — Expo Go (мобильный клиент)
 
+**Не запускайте Expo из папки `backend/`** — там нет `package.json` для Expo. Перейдите в **`mobile/`** (или из корня проекта: `npm run mobile:start`).
+
 ## Настройка
 
 ```bash
