@@ -12,7 +12,7 @@ import requests
 import jwt
 import bcrypt
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Header, Query
 from starlette.middleware.cors import CORSMiddleware
@@ -43,23 +43,22 @@ def _mongo_uri() -> str:
     return raw or "mongodb://localhost:27017"
 
 
-def _build_motor_kwargs(mongo_uri: str) -> Tuple[dict, bool]:
+def _build_motor_kwargs(mongo_uri: str) -> dict:
     """
-    Явные TLS-настройки для Motor (совместимо с PyMongo MongoClient).
-    Для mongodb+srv (Atlas): tls=True; пока не задан MONGO_TLS_STRICT — tlsAllowInvalidCertificates=True
-    (обход TLSV1_ALERT_INTERNAL_ERROR на части OpenSSL 3 / VPS).
+    Motor / PyMongo: для MongoDB Atlas (mongodb+srv) на OpenSSL 3 часто падает
+    строгая проверка цепочки → TLSV1_ALERT_INTERNAL_ERROR. Единственное
+    поддерживаемое здесь исправление — tls + tlsAllowInvalidCertificates.
+    Локальный mongodb:// без этих флагов.
     """
-    strict = os.environ.get("MONGO_TLS_STRICT", "").lower() in ("1", "true", "yes")
     kw: dict = {
         "maxPoolSize": _env_int("MONGO_MAX_POOL_SIZE", 20),
         "minPoolSize": 1,
-        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 5000),
+        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 10000),
     }
     if mongo_uri.startswith("mongodb+srv://"):
         kw["tls"] = True
-        if not strict:
-            kw["tlsAllowInvalidCertificates"] = True
-    return kw, strict
+        kw["tlsAllowInvalidCertificates"] = True
+    return kw
 
 
 # ---------- Config ----------
@@ -68,25 +67,22 @@ IS_PROD = APP_ENV == "production"
 
 # ---------- Mongo ----------
 mongo_url = _mongo_uri()
-_motor_kw, _mongo_tls_strict = _build_motor_kwargs(mongo_url)
-logger.info(
-    "MongoDB Motor: creating client (serverSelectionTimeoutMS=%s, maxPoolSize=%s, srv=%s, MONGO_TLS_STRICT=%s)",
-    _motor_kw["serverSelectionTimeoutMS"],
-    _motor_kw["maxPoolSize"],
-    mongo_url.startswith("mongodb+srv://"),
-    _mongo_tls_strict,
-)
-if mongo_url.startswith("mongodb+srv://") and not _mongo_tls_strict:
-    logger.warning(
-        "MongoDB TLS: tls=True, tlsAllowInvalidCertificates=True (временно). "
-        "После исправления OpenSSL/CA задайте MONGO_TLS_STRICT=true в .env."
+_motor_kw = _build_motor_kwargs(mongo_url)
+if mongo_url.startswith("mongodb+srv://"):
+    logger.info(
+        "MongoDB Motor: Atlas TLS — tls=True, tlsAllowInvalidCertificates=True, "
+        "serverSelectionTimeoutMS=%s, maxPoolSize=%s",
+        _motor_kw["serverSelectionTimeoutMS"],
+        _motor_kw["maxPoolSize"],
     )
-elif mongo_url.startswith("mongodb+srv://") and _mongo_tls_strict:
-    logger.info("MongoDB TLS: tls=True, проверка сертификатов включена (MONGO_TLS_STRICT=true)")
 else:
-    logger.info("MongoDB: локальный URI без принудительного tls= (dev)")
+    logger.info(
+        "MongoDB Motor: dev URI, serverSelectionTimeoutMS=%s, maxPoolSize=%s",
+        _motor_kw["serverSelectionTimeoutMS"],
+        _motor_kw["maxPoolSize"],
+    )
 client = AsyncIOMotorClient(mongo_url, **_motor_kw)
-logger.info("MongoDB Motor client created (первое подключение при первом запросе)")
+logger.info("MongoDB Motor client created (lazy connect)")
 db = client[os.environ.get("DB_NAME", "test_database")]
 
 from seed import run_seed

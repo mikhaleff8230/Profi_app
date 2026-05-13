@@ -52,9 +52,7 @@ Required frontend `.env` value:
 
 ## 5) systemd service (backend)
 
-В **`server.py`** для URI **`mongodb+srv://`** (Atlas) задаются **`tls=True`** и (пока не задан **`MONGO_TLS_STRICT=true`**) **`tlsAllowInvalidCertificates=True`**, чтобы обойти типичные ошибки OpenSSL 3 на VPS. Дополнительно unit может задавать **`OPENSSL_CONF`** → `deploy/ssl/openssl-mongodb.cnf`.
-
-После того как соединение стабильно работает в строгом режиме, в **`backend/.env`** задайте **`MONGO_TLS_STRICT=true`** и при необходимости уберите `Environment=OPENSSL_CONF` из unit.
+Для **Atlas** (`mongodb+srv`) в **`server.py`** заданы **`tls=True`** и **`tlsAllowInvalidCertificates=True`** в Motor — иначе на OpenSSL 3 на части VPS handshake падает с `TLSV1_ALERT_INTERNAL_ERROR`. Дополнительно unit может задавать **`OPENSSL_CONF`** → `deploy/ssl/openssl-mongodb.cnf` (необязательно, если код уже обходит проблему).
 
 ```bash
 sudo cp /var/www/proffi/deploy/systemd/proffi-backend.service /etc/systemd/system/

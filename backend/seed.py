@@ -207,17 +207,15 @@ async def _main_async() -> None:
         return raw or "mongodb://localhost:27017"
 
     mongo_url = _mongo_uri()
-    strict = os.environ.get("MONGO_TLS_STRICT", "").lower() in ("1", "true", "yes")
     motor_kw = {
         "maxPoolSize": _env_int("MONGO_MAX_POOL_SIZE", 20),
         "minPoolSize": 1,
-        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 5000),
+        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 10000),
     }
     if mongo_url.startswith("mongodb+srv://"):
         motor_kw["tls"] = True
-        if not strict:
-            motor_kw["tlsAllowInvalidCertificates"] = True
-    logging.info("seed CLI: Motor kwargs srv=%s strict_tls=%s", mongo_url.startswith("mongodb+srv://"), strict)
+        motor_kw["tlsAllowInvalidCertificates"] = True
+    logging.info("seed CLI: Motor client (srv=%s)", mongo_url.startswith("mongodb+srv://"))
     client = AsyncIOMotorClient(mongo_url, **motor_kw)
     db = client[os.environ.get("DB_NAME", "test_database")]
 
