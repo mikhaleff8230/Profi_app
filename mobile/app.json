@@ -19,6 +19,20 @@
       "adaptiveIcon": {
         "backgroundColor": "#f5f3ff"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Proffi использует геолокацию для карты заказов рядом с вами."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Приложению нужен доступ к фото для смены аватара в профиле."
+        }
+      ]
+    ]
   }
 }

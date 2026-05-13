@@ -6,6 +6,35 @@ import * as SecureStore from "expo-secure-store";
  */
 export const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/+$/, "");
 
+/** Публичный URL файла с бэкенда (как на веб: /api/files/...) */
+export function fileUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith("http") || path.startsWith("blob:")) return path;
+  return `${API_BASE}/api/files/${path}`;
+}
+
+/** Multipart загрузка (аватар и т.п.) */
+export async function apiUploadFile(uri: string, mime = "image/jpeg", filename = "upload.jpg"): Promise<{ path: string }> {
+  const token = await getToken();
+  const form = new FormData();
+  form.append("file", { uri, name: filename, type: mime } as any);
+  const headers: HeadersInit = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/uploads`, { method: "POST", headers, body: form });
+  const text = await res.text();
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  if (!res.ok) {
+    const msg = typeof data?.detail === "string" ? data.detail : `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
 const TOKEN_KEY = "proffi_jwt";
 
 export async function getToken(): Promise<string | null> {
