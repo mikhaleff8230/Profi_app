@@ -53,6 +53,20 @@ npm run build
 
 Шаблон: `frontend/env.vps.template` (в `.env` нужен **`REACT_APP_API_URL`** — origin фронта, **без** суффикса `/api`; запросы пойдут на `…/api` через Nginx). Подробнее — `frontend/.env.example`.
 
+## 4.1) Admin (Vite), если собираете отдельно
+
+```bash
+cd /var/www/proffi/admin
+cp env.vps.template .env
+nano .env
+npm ci
+npm run build
+```
+
+Нужен **`VITE_API_BASE`** — origin сайта, где доступен тот же API (обычно основной домен с Nginx `/api/`, например `https://proffi.sancan.ru`). Без `/api` в конце.
+
+Не задавайте в `.env` продакшена **`VITE_ADMIN_TOKEN`** с реальным секретом: значения `VITE_*` попадают в собранный JS. Токен из `ADMIN_TOKEN` бэкенда вводите на экране входа в админке. Шаблон: `admin/env.vps.template`, комментарии — `admin/.env.example`.
+
 ## 5) systemd service (backend)
 
 ```bash
