@@ -59,6 +59,8 @@ client = AsyncIOMotorClient(
 )
 db = client[os.environ.get("DB_NAME", "test_database")]
 
+from seed import run_seed
+
 JWT_ALGORITHM = "HS256"
 JWT_SECRET = os.environ.get("JWT_SECRET", "dev-jwt-secret-change-me")
 
@@ -987,6 +989,7 @@ class AdminUserCreate(BaseModel):
     name: str
     role: str
     city: Optional[str] = None
+    email: Optional[str] = None
 
 
 class AdminCategoryCreate(BaseModel):
@@ -1026,7 +1029,7 @@ async def admin_list_users():
 
 @admin_router.post("/users")
 async def admin_create_user(body: AdminUserCreate):
-    if body.role not in ("customer", "specialist"):
+    if body.role not in ("customer", "specialist", "admin"):
         raise HTTPException(status_code=400, detail="Invalid role")
     if len(body.password) < 4:
         raise HTTPException(status_code=400, detail="Password too short")
@@ -1048,6 +1051,8 @@ async def admin_create_user(body: AdminUserCreate):
         "avatar": None,
         "created_at": now_iso(),
     }
+    if body.email and str(body.email).strip():
+        doc["email"] = str(body.email).strip()
     await db.users.insert_one(doc)
     doc.pop("password_hash", None)
     return doc
@@ -1123,6 +1128,83 @@ async def admin_delete_filter(filter_id: str):
     return {"ok": True}
 
 
+async def _execute_seed() -> dict:
+    summary = await run_seed(db, hash_password, now_iso, normalize_phone)
+    return {"status": "seed completed", "summary": summary}
+
+
+@admin_router.post("/seed")
+async def admin_seed_post():
+    return await _execute_seed()
+
+
+# Alias: POST /admin/seed (same X-Admin-Token) — удобно для curl без префикса /api
+admin_browser_router = APIRouter(prefix="/admin", dependencies=[Depends(verify_admin)])
+
+
+@admin_browser_router.post("/seed")
+async def admin_seed_alias():
+    return await _execute_seed()
+
+
+# --- Stable management aliases under /api/* (header X-Admin-Token) ---
+@api_router.get("/users", dependencies=[Depends(verify_admin)])
+async def api_list_users_compact():
+    cursor = db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).limit(500)
+    rows = await cursor.to_list(500)
+    return [
+        {
+            "id": u.get("id"),
+            "email": u.get("email"),
+            "phone": u.get("phone"),
+            "name": u.get("name"),
+            "role": u.get("role"),
+        }
+        for u in rows
+    ]
+
+
+@api_router.post("/users", dependencies=[Depends(verify_admin)])
+async def api_create_user_alias(body: AdminUserCreate):
+    return await admin_create_user(body)
+
+
+@api_router.delete("/users/{user_id}", dependencies=[Depends(verify_admin)])
+async def api_delete_user_alias(user_id: str):
+    await admin_delete_user(user_id)
+    return {"status": "deleted"}
+
+
+@api_router.post("/categories", dependencies=[Depends(verify_admin)])
+async def api_create_category_alias(body: AdminCategoryCreate):
+    doc = await admin_create_category(body)
+    return {"status": "created", "category": doc}
+
+
+@api_router.delete("/categories/{category_id}", dependencies=[Depends(verify_admin)])
+async def api_delete_category_alias(category_id: str):
+    await admin_delete_category(category_id)
+    return {"status": "deleted"}
+
+
+@api_router.get("/filters", dependencies=[Depends(verify_admin)])
+async def api_list_filters_alias():
+    return await admin_list_filters()
+
+
+@api_router.post("/filters", dependencies=[Depends(verify_admin)])
+async def api_create_filter_alias(body: AdminFilterCreate):
+    doc = await admin_create_filter(body)
+    return {"status": "created", "filter": doc}
+
+
+@api_router.delete("/filters/{filter_id}", dependencies=[Depends(verify_admin)])
+async def api_delete_filter_alias(filter_id: str):
+    await admin_delete_filter(filter_id)
+    return {"status": "deleted"}
+
+
+app.include_router(admin_browser_router)
 app.include_router(admin_router)
 app.include_router(api_router)
 
