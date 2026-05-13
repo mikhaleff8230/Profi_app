@@ -874,14 +874,18 @@ async def root():
 
 @app.get("/health")
 async def health():
-    mongo = getattr(app.state, "mongo_ok", None)
-    if mongo is True:
-        m = "connected"
-    elif mongo is False:
-        m = "degraded"
-    else:
-        m = "starting"
-    return {"status": "ok", "env": APP_ENV, "mongo": m}
+    """
+    Проверка Mongo в реальном времени (ping), а не только флаг со старта процесса.
+    Иначе после временного сбоя или до появления OPENSSL_CONF остаётся вечный degraded.
+    """
+    mongo_live = "degraded"
+    try:
+        await client.admin.command("ping")
+        mongo_live = "connected"
+        app.state.mongo_ok = True
+    except Exception:
+        app.state.mongo_ok = False
+    return {"status": "ok", "env": APP_ENV, "mongo": mongo_live}
 
 
 async def _ensure_unique_id_index(collection_name: str) -> None:
