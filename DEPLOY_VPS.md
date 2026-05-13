@@ -53,6 +53,10 @@ npm run build
 
 Шаблон: `frontend/env.vps.template` (в `.env` нужен **`REACT_APP_API_URL`** — origin фронта, **без** суффикса `/api`; запросы пойдут на `…/api` через Nginx). Подробнее — `frontend/.env.example`.
 
+## 4.0) Expo Go (мобильное приложение)
+
+Каталог **`mobile/`**: React Native + Expo, вход по **email + OTP** и JWT в **SecureStore**. См. **`mobile/README.md`**. Переменная **`EXPO_PUBLIC_API_URL`** — origin API **без** `/api` (как у веб-фронта). В корне репозитория: `npm run mobile:start`.
+
 ## 4.1) Admin (Vite), если собираете отдельно
 
 ```bash

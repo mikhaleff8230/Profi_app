@@ -6,6 +6,7 @@
     "build": "npm run build:frontend && npm run build:admin",
     "build:frontend": "npm ci --prefix frontend --no-audit --no-fund && npm run build --prefix frontend",
     "build:admin": "npm ci --prefix admin --no-audit --no-fund && npm run build --prefix admin",
-    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1"
+    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
+    "mobile:start": "npm run start --prefix mobile"
   }
 }

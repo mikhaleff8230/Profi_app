@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Proffi",
+    "slug": "proffi",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "proffi",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#f5f3ff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ru.sancan.proffi"
+    },
+    "android": {
+      "package": "ru.sancan.proffi",
+      "adaptiveIcon": {
+        "backgroundColor": "#f5f3ff"
+      }
+    }
+  }
+}
