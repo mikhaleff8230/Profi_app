@@ -114,6 +114,49 @@ Phone checks (same network or public internet):
 - Open `http://<your-vps-ip>/` in mobile browser
 - API test: `http://<your-vps-ip>/health`
 
+### Git на сервере (актуальность кода)
+
+```bash
+cd /var/www/proffi
+git status
+git log -1 --oneline
+git rev-parse HEAD
+# Сравните с последним коммитом на GitHub.
+```
+
+### Сервис и API
+
+```bash
+sudo systemctl is-active proffi-backend
+curl -sS http://127.0.0.1:8001/health
+curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8001/api/
+```
+
+### База SQLite
+
+Файл по умолчанию: `backend/app.db` (или путь из `DATABASE_URL`).
+
+```bash
+ls -la /var/www/proffi/backend/app.db
+# при установленном sqlite3:
+sqlite3 /var/www/proffi/backend/app.db "SELECT phone, role, name FROM users LIMIT 20;"
+```
+
+### Пользователи для входа в приложение (телефон + пароль)
+
+1. **Полный seed** (`POST /api/admin/seed` с заголовком `X-Admin-Token: <ADMIN_TOKEN>` или CLI `python -m seed` в каталоге backend) создаёт из `seed.py`:
+   - админ: **`+10000000001`** / **`admin123`**
+   - заказчик: **`+10000000002`** / **`customer123`**
+   - специалист: **`+10000000003`** / **`specialist123`**
+
+2. Если в `.env` бэкенда **`ENABLE_TEST_SEED=true`**, при старте создаётся тестовый пользователь: **`+79031416581`** / **`Test12345!`** (роль в БД — customer).
+
+Пока таблица `users` пуста, логин в приложении вернёт 401 — сначала выполните seed или включите `ENABLE_TEST_SEED`, перезапустите сервис.
+
+### Временный автологин на проде (фронт)
+
+В `frontend/.env` перед сборкой можно задать **`REACT_APP_AUTOLOGIN=true`**: тогда сборка будет сама логиниться (по умолчанию под seed-админом `+10000000001` / `admin123`, если не заданы `REACT_APP_AUTOLOGIN_PHONE` / `REACT_APP_AUTOLOGIN_PASSWORD`). **Небезопасно** — отключите, когда авторизация будет готова. Подробнее — комментарии в `frontend/.env.example`.
+
 ## 9) Update deployment after new commit
 
 ```bash
