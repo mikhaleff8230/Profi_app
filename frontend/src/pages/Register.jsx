@@ -19,7 +19,9 @@ export default function Register() {
   const [city, setCity] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canSubmit = phone.trim().length > 5 && password.length >= 4 && name.trim().length > 1;
+  const phoneDigits = (phone.match(/\d/g) || []).length;
+  const canSubmit =
+    phoneDigits >= 10 && password.length >= 4 && name.trim().length >= 1;
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -93,6 +95,12 @@ export default function Register() {
             onChange={(e) => setCity(e.target.value)}
           />
         </div>
+
+        {!canSubmit && !loading ? (
+          <p className="text-xs text-neutral-500 mt-3 leading-relaxed" data-testid="register-submit-hint">
+            {t("register_submit_hint")}
+          </p>
+        ) : null}
 
         <div className="flex-1" />
 

@@ -14,7 +14,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const canSubmit = phone.trim().length > 5 && password.length >= 4;
+  const phoneDigits = (phone.match(/\d/g) || []).length;
+  const canSubmit = phoneDigits >= 10 && password.length >= 4;
 
   const onSubmit = async (e) => {
     e.preventDefault();

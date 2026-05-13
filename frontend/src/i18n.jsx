@@ -20,6 +20,8 @@ export const translations = {
     register: "Зарегистрироваться",
     back_to_login: "Уже есть аккаунт? Войти",
     go_to_register: "Нет аккаунта? Зарегистрироваться",
+    register_submit_hint:
+      "Чтобы кнопка «Продолжить» стала активной: укажите имя (хотя бы 1 буква), телефон (от 10 цифр, можно с +) и пароль (от 4 символов). Если номер уже зарегистрирован — войдите через «Войти» ниже, а не регистрируйтесь снова.",
     role_customer: "Я — Заказчик",
     role_specialist: "Я — Специалист",
     sim_or_sms: "Войти по сим-пушу или СМС",
@@ -171,6 +173,8 @@ export const translations = {
     register: "Înregistrare",
     back_to_login: "Ai deja cont? Autentifică-te",
     go_to_register: "Nu ai cont? Înregistrează-te",
+    register_submit_hint:
+      "Pentru a activa «Continuă»: nume (minim 1 caracter), telefon (minim 10 cifre, poate cu +) și parolă (minim 4 caractere). Dacă numărul e deja înregistrat — folosește «Autentifică-te» de mai jos.",
     role_customer: "Sunt Client",
     role_specialist: "Sunt Specialist",
     sim_or_sms: "Autentificare prin SIM sau SMS",
