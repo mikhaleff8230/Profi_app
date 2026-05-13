@@ -5,6 +5,7 @@ import { useLang } from "../i18n";
 import { useAuth } from "../auth";
 import { TopBar, LangSwitcher } from "../components/Layout";
 import { formatApiError } from "../api";
+import { applyPhoneMask } from "../utils/phoneMask";
 
 export default function Register() {
   const { t } = useLang();
@@ -75,7 +76,7 @@ export default function Register() {
               inputMode="tel"
               placeholder={t("phone_placeholder")}
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(applyPhoneMask(e.target.value))}
               className="bg-transparent flex-1 outline-none"
             />
           </div>
