@@ -402,7 +402,14 @@ CATEGORIES = [
 
 @api_router.get("/categories")
 async def get_categories():
-    return CATEGORIES
+    try:
+        if await db.categories.count_documents({}) == 0:
+            return CATEGORIES
+        cursor = db.categories.find({}, {"_id": 0}).sort("id", 1)
+        items = await cursor.to_list(500)
+        return items if items else CATEGORIES
+    except Exception:
+        return CATEGORIES
 
 
 # ---------- Tasks ----------
@@ -840,6 +847,8 @@ async def on_startup():
     await db.messages.create_index("chat_id")
     await db.chats.create_index([("customer_id", 1), ("specialist_id", 1)])
     await db.files.create_index("storage_path")
+    await db.categories.create_index("id", unique=True)
+    await db.filters.create_index("id", unique=True)
     init_storage()
     if os.environ.get("ENABLE_TEST_SEED", "false").lower() == "true":
         await seed_test_user()
@@ -894,6 +903,162 @@ async def seed_test_user():
     logging.info(f"Test user created: {phone}")
 
 
+# ---------- Admin API (header X-Admin-Token; default token "admin") ----------
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "admin")
+
+
+async def verify_admin(x_admin_token: Optional[str] = Header(default=None)):
+    if (x_admin_token or "").strip() != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+    return True
+
+
+admin_router = APIRouter(prefix="/api/admin", dependencies=[Depends(verify_admin)])
+
+
+class AdminUserCreate(BaseModel):
+    phone: str
+    password: str
+    name: str
+    role: str
+    city: Optional[str] = None
+
+
+class AdminCategoryCreate(BaseModel):
+    id: str
+    icon: str = "MoreHorizontal"
+    name_ru: str
+    name_ro: str
+
+
+class AdminFilterCreate(BaseModel):
+    id: Optional[str] = None
+    name: str
+    key: str
+    value: str
+
+
+class AdminFilterUpdate(BaseModel):
+    name: Optional[str] = None
+    key: Optional[str] = None
+    value: Optional[str] = None
+
+
+@admin_router.get("/stats")
+async def admin_stats():
+    return {
+        "users": await db.users.count_documents({}),
+        "categories": await db.categories.count_documents({}),
+        "filters": await db.filters.count_documents({}),
+    }
+
+
+@admin_router.get("/users")
+async def admin_list_users():
+    cursor = db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).limit(500)
+    return await cursor.to_list(500)
+
+
+@admin_router.post("/users")
+async def admin_create_user(body: AdminUserCreate):
+    if body.role not in ("customer", "specialist"):
+        raise HTTPException(status_code=400, detail="Invalid role")
+    if len(body.password) < 4:
+        raise HTTPException(status_code=400, detail="Password too short")
+    phone = normalize_phone(body.phone)
+    if await db.users.find_one({"phone": phone}):
+        raise HTTPException(status_code=400, detail="Phone already registered")
+    user_id = str(uuid.uuid4())
+    doc = {
+        "id": user_id,
+        "phone": phone,
+        "password_hash": hash_password(body.password),
+        "name": body.name,
+        "role": body.role,
+        "city": body.city,
+        "rating": 0.0,
+        "reviews_count": 0,
+        "bio": None,
+        "services": [],
+        "avatar": None,
+        "created_at": now_iso(),
+    }
+    await db.users.insert_one(doc)
+    doc.pop("password_hash", None)
+    return doc
+
+
+@admin_router.delete("/users/{user_id}")
+async def admin_delete_user(user_id: str):
+    res = await db.users.delete_one({"id": user_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True}
+
+
+@admin_router.get("/categories")
+async def admin_list_categories():
+    cursor = db.categories.find({}, {"_id": 0}).sort("id", 1)
+    return await cursor.to_list(500)
+
+
+@admin_router.post("/categories")
+async def admin_create_category(body: AdminCategoryCreate):
+    cid = body.id.strip()
+    if not cid:
+        raise HTTPException(status_code=400, detail="Invalid id")
+    if await db.categories.find_one({"id": cid}):
+        raise HTTPException(status_code=400, detail="Category id exists")
+    doc = {"id": cid, "icon": body.icon, "name_ru": body.name_ru, "name_ro": body.name_ro}
+    await db.categories.insert_one(doc)
+    return doc
+
+
+@admin_router.delete("/categories/{category_id}")
+async def admin_delete_category(category_id: str):
+    res = await db.categories.delete_one({"id": category_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"ok": True}
+
+
+@admin_router.get("/filters")
+async def admin_list_filters():
+    cursor = db.filters.find({}, {"_id": 0}).sort("created_at", -1).limit(500)
+    return await cursor.to_list(500)
+
+
+@admin_router.post("/filters")
+async def admin_create_filter(body: AdminFilterCreate):
+    fid = (body.id or "").strip() or str(uuid.uuid4())
+    if await db.filters.find_one({"id": fid}):
+        raise HTTPException(status_code=400, detail="Filter id exists")
+    doc = {"id": fid, "name": body.name, "key": body.key, "value": body.value, "created_at": now_iso()}
+    await db.filters.insert_one(doc)
+    return doc
+
+
+@admin_router.put("/filters/{filter_id}")
+async def admin_update_filter(filter_id: str, body: AdminFilterUpdate):
+    patch = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if not patch:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+    res = await db.filters.update_one({"id": filter_id}, {"$set": patch})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Filter not found")
+    row = await db.filters.find_one({"id": filter_id}, {"_id": 0})
+    return row
+
+
+@admin_router.delete("/filters/{filter_id}")
+async def admin_delete_filter(filter_id: str):
+    res = await db.filters.delete_one({"id": filter_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Filter not found")
+    return {"ok": True}
+
+
+app.include_router(admin_router)
 app.include_router(api_router)
 
 def parse_cors_origins() -> List[str]:
@@ -905,6 +1070,8 @@ def parse_cors_origins() -> List[str]:
     defaults = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
         "http://localhost:8081",
         "http://127.0.0.1:8081",
     ]

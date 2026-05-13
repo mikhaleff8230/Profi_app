@@ -32,6 +32,8 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+!backend/.env.example
+!admin/.env.example
 backend/.env
 frontend/.env
 
