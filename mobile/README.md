@@ -16,6 +16,8 @@ npm install
 npx expo start
 ```
 
+Если Metro пишет **`expo-asset` cannot be found** — в каталоге `mobile/` выполните: `npx expo install expo-asset`, затем снова `npx expo start`.
+
 Откройте проект в **Expo Go** (QR в терминале).
 
 ## Поток авторизации (как на бэкенде)
