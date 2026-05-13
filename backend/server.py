@@ -5,6 +5,13 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 import os
+
+# До импорта Motor: при наличии репозиторного openssl.cnf (OpenSSL 3 + Atlas) подхватываем в процесс.
+_deploy_openssl = (ROOT_DIR.parent / "deploy" / "ssl" / "openssl-mongodb.cnf").resolve()
+if _deploy_openssl.is_file() and not (os.environ.get("OPENSSL_CONF") or "").strip():
+    os.environ["OPENSSL_CONF"] = str(_deploy_openssl)
+
+import asyncio
 import logging
 import uuid
 import math
@@ -12,7 +19,7 @@ import requests
 import jwt
 import bcrypt
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Header, Query
 from starlette.middleware.cors import CORSMiddleware
@@ -23,6 +30,9 @@ from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+_ossl = (os.environ.get("OPENSSL_CONF") or "").strip()
+if _ossl:
+    logger.info("Using OPENSSL_CONF=%s", _ossl)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -53,7 +63,7 @@ def _build_motor_kwargs(mongo_uri: str) -> dict:
     kw: dict = {
         "maxPoolSize": _env_int("MONGO_MAX_POOL_SIZE", 20),
         "minPoolSize": 1,
-        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 10000),
+        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 20000),
     }
     if mongo_uri.startswith("mongodb+srv://"):
         kw["tls"] = True
@@ -84,6 +94,22 @@ else:
 client = AsyncIOMotorClient(mongo_url, **_motor_kw)
 logger.info("MongoDB Motor client created (lazy connect)")
 db = client[os.environ.get("DB_NAME", "test_database")]
+
+
+async def _mongo_ping(retry_once: bool = False) -> Tuple[bool, Optional[str]]:
+    """Единая проверка доступности кластера (admin ping)."""
+    last_err: Optional[str] = None
+    attempts = 2 if retry_once else 1
+    for i in range(attempts):
+        try:
+            await client.admin.command("ping")
+            return True, None
+        except Exception as e:
+            last_err = str(e)
+            if retry_once and i + 1 < attempts:
+                await asyncio.sleep(0.25)
+    return False, last_err
+
 
 from seed import run_seed
 
@@ -900,20 +926,13 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """
-    Живой ping к Mongo (не только флаг со старта).
-    TLS для mongodb+srv настраивается при создании Motor (см. _build_motor_kwargs).
-    """
-    mongo_live = "degraded"
-    try:
-        ping = await client.admin.command("ping")
-        mongo_live = "connected"
-        app.state.mongo_ok = True
-        logger.debug("/health mongo ping ok: %s", ping)
-    except Exception as e:
-        app.state.mongo_ok = False
-        logger.warning("/health mongo ping failed: %s", e)
-    return {"status": "ok", "env": APP_ENV, "mongo": mongo_live}
+    """Реальное состояние Mongo: тот же ping, что и при старте (с одним повтором при гонке)."""
+    ok, err = await _mongo_ping(retry_once=True)
+    app.state.mongo_ok = ok
+    out = {"status": "ok", "env": APP_ENV, "mongo": "connected" if ok else "degraded"}
+    if not ok and err:
+        out["mongo_error"] = err[:500]
+    return out
 
 
 async def _ensure_unique_id_index(collection_name: str) -> None:
@@ -927,14 +946,13 @@ async def _ensure_unique_id_index(collection_name: str) -> None:
 @app.on_event("startup")
 async def on_startup():
     app.state.mongo_ok = False
-    logger.info("MongoDB connection attempt (admin.command ping)...")
-    try:
-        ping = await client.admin.command("ping")
-        logger.info("MongoDB connected successfully: ping=%s", ping)
-    except Exception as e:
-        logger.error("MongoDB connection failed: %s", e)
+    logger.info("MongoDB startup: ping cluster...")
+    ok, err = await _mongo_ping(retry_once=True)
+    if not ok:
+        logger.error("MongoDB connection failed: %s", err)
         logger.warning("Running in fallback mode (MongoDB unavailable)")
         return
+    logger.info("MongoDB connected successfully: ping=ok")
     app.state.mongo_ok = True
     try:
         await db.users.create_index("phone", unique=True)
@@ -950,7 +968,7 @@ async def on_startup():
         if os.environ.get("ENABLE_TEST_SEED", "false").lower() == "true":
             await seed_test_user()
     except Exception as e:
-        logger.error("MongoDB startup tasks failed: %s", e)
+        logger.error("MongoDB startup tasks (indexes/seed) failed: %s", e)
 
 
 async def seed_test_user():
@@ -1278,9 +1296,22 @@ async def shutdown_db_client():
 
 
 if __name__ == "__main__":
+    import socket
     import uvicorn
 
     host = os.environ.get("HOST", "0.0.0.0")
     port = _env_int("PORT", 8001)
+    bind_check = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host.replace("[", "").replace("]", "")
+    if bind_check == "::":
+        bind_check = "127.0.0.1"
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind((bind_check, port))
+    except OSError as e:
+        logger.error("Port %s:%s already in use or not bindable: %s", bind_check, port, e)
+        raise SystemExit(1) from e
+    finally:
+        probe.close()
     reload_enabled = os.environ.get("RELOAD", "false" if IS_PROD else "true").lower() == "true"
     uvicorn.run("server:app", host=host, port=port, reload=reload_enabled)

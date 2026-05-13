@@ -210,7 +210,7 @@ async def _main_async() -> None:
     motor_kw = {
         "maxPoolSize": _env_int("MONGO_MAX_POOL_SIZE", 20),
         "minPoolSize": 1,
-        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 10000),
+        "serverSelectionTimeoutMS": _env_int("MONGO_SERVER_SELECTION_TIMEOUT_MS", 20000),
     }
     if mongo_url.startswith("mongodb+srv://"):
         motor_kw["tls"] = True
