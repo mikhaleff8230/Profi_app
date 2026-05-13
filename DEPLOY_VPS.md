@@ -6,7 +6,7 @@
 sudo mkdir -p /var/www
 sudo chown -R $USER:$USER /var/www
 cd /var/www
-git clone <YOUR_GITHUB_REPO_URL> proffi
+git clone <https://github.com/mikhaleff8230/Profi_app> proffi
 cd proffi
 ```
 
@@ -70,6 +70,7 @@ sudo journalctl -u proffi-backend -f
 
 ```bash
 sudo cp /var/www/proffi/deploy/nginx/proffi.conf /etc/nginx/sites-available/proffi
+# При необходимости отредактируйте server_name в файле (без плейсхолдеров вроде <VPS_IP>).
 sudo ln -sf /etc/nginx/sites-available/proffi /etc/nginx/sites-enabled/proffi
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
