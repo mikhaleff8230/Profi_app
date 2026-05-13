@@ -8,14 +8,21 @@ import { useAuth } from "../context/AuthContext";
 import { useLang } from "../context/LangContext";
 import { colors } from "../theme";
 import AuthScreen from "../../screens/AuthScreen";
+import LoginStubScreen from "../../screens/LoginStubScreen";
+import RegisterStubScreen from "../../screens/RegisterStubScreen";
 import HomeScreen from "../../screens/HomeScreen";
 import OrdersScreen from "../../screens/OrdersScreen";
 import ChatsScreen from "../../screens/ChatsScreen";
 import ProfileScreen from "../../screens/ProfileScreen";
 import MapScreen from "../../screens/MapScreen";
-import type { MainTabParamList, RootStackParamList } from "./types";
+import TasksListScreen from "../../screens/TasksListScreen";
+import TaskDetailScreen from "../../screens/TaskDetailScreen";
+import CreateTaskScreen from "../../screens/CreateTaskScreen";
+import ChatDetailScreen from "../../screens/ChatDetailScreen";
+import SpecialistProfileScreen from "../../screens/SpecialistProfileScreen";
+import type { AuthStackParamList, MainTabParamList, RootStackParamList } from "./types";
 
-const AuthStackNav = createNativeStackNavigator<{ Auth: undefined }>();
+const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
 const AppStackNav = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -71,6 +78,11 @@ function LoggedInStack() {
     <AppStackNav.Navigator screenOptions={{ headerShown: false }}>
       <AppStackNav.Screen name="MainTabs" component={MainTabs} />
       <AppStackNav.Screen name="Map" component={MapScreen} />
+      <AppStackNav.Screen name="TasksList" component={TasksListScreen} />
+      <AppStackNav.Screen name="TaskDetail" component={TaskDetailScreen} />
+      <AppStackNav.Screen name="CreateTask" component={CreateTaskScreen} />
+      <AppStackNav.Screen name="ChatDetail" component={ChatDetailScreen} />
+      <AppStackNav.Screen name="SpecialistProfile" component={SpecialistProfileScreen} />
     </AppStackNav.Navigator>
   );
 }
@@ -91,8 +103,10 @@ export function RootNavigator() {
       {user ? (
         <LoggedInStack />
       ) : (
-        <AuthStackNav.Navigator screenOptions={{ headerShown: false }}>
-          <AuthStackNav.Screen name="Auth" component={AuthScreen} />
+        <AuthStackNav.Navigator screenOptions={{ headerShown: false }} initialRouteName="AuthMain">
+          <AuthStackNav.Screen name="AuthMain" component={AuthScreen} />
+          <AuthStackNav.Screen name="Login" component={LoginStubScreen} />
+          <AuthStackNav.Screen name="Register" component={RegisterStubScreen} />
         </AuthStackNav.Navigator>
       )}
     </NavigationContainer>

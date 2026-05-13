@@ -12,16 +12,20 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiFetch } from "../src/api";
 import { useAuth, type UserRole } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing, typography } from "../src/theme";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { LangSwitcher } from "../components/LangSwitcher";
+import type { AuthStackParamList } from "../src/navigation/types";
 
 type Step = "onboarding" | "email" | "otp";
 
 export default function AuthScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const { t } = useLang();
   const { signIn } = useAuth();
   const [step, setStep] = useState<Step>("onboarding");
@@ -133,7 +137,7 @@ export default function AuthScreen() {
             variant="ghost"
             onPress={() => goEmail("customer")}
           />
-          <PrimaryButton title={t("back_to_login")} variant="ghost" onPress={() => setStep("email")} />
+          <PrimaryButton title={t("back_to_login")} variant="ghost" onPress={() => navigation.navigate("Login")} />
         </View>
       </View>
     );
@@ -206,6 +210,8 @@ export default function AuthScreen() {
         </View>
         <PrimaryButton title="Зарегистрироваться" onPress={onRegister} loading={busy} />
         <PrimaryButton title="Войти по email" variant="secondary" onPress={onLoginEmail} loading={busy} />
+        <PrimaryButton title={t("go_to_register")} variant="ghost" onPress={() => navigation.navigate("Register")} />
+        <PrimaryButton title={t("stub_login_title")} variant="ghost" onPress={() => navigation.navigate("Login")} />
         <PrimaryButton title="← К выбору роли" variant="ghost" onPress={() => setStep("onboarding")} />
       </ScrollView>
     </KeyboardAvoidingView>

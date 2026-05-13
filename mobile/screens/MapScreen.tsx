@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, type Region } from "react-native-maps";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,8 +30,12 @@ const MOSCOW: Region = {
 
 type TaskWithGeo = TaskItem & { lat?: number | null; lng?: number | null };
 
+type R = RouteProp<RootStackParamList, "Map">;
+
 export default function MapScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Map">>();
+  const route = useRoute<R>();
+  const filter = route.params || {};
   const { t } = useLang();
   const mapRef = useRef<MapView>(null);
   const [tasks, setTasks] = useState<TaskWithGeo[]>([]);
@@ -39,27 +43,34 @@ export default function MapScreen() {
   const [selected, setSelected] = useState<TaskWithGeo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadTasks = useCallback(async (lat?: number, lng?: number) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (lat != null && lng != null) {
-        params.set("lat", String(lat));
-        params.set("lng", String(lng));
+  const loadTasks = useCallback(
+    async (lat?: number, lng?: number) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (filter.category) params.set("category", filter.category);
+        if (filter.q) params.set("q", filter.q);
+        if (filter.city) params.set("city", filter.city);
+        if (lat != null && lng != null) {
+          params.set("lat", String(lat));
+          params.set("lng", String(lng));
+          params.set("sort", "distance");
+        }
+        const qs = params.toString();
+        const [catData, taskData] = await Promise.all([
+          apiFetch("/categories", { method: "GET" }),
+          apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" }),
+        ]);
+        setCategories(Array.isArray(catData) ? catData : []);
+        setTasks(Array.isArray(taskData) ? taskData : []);
+      } catch {
+        setTasks([]);
+      } finally {
+        setLoading(false);
       }
-      const q = params.toString();
-      const [catData, taskData] = await Promise.all([
-        apiFetch("/categories", { method: "GET" }),
-        apiFetch(q ? `/tasks?${q}` : "/tasks", { method: "GET" }),
-      ]);
-      setCategories(Array.isArray(catData) ? catData : []);
-      setTasks(Array.isArray(taskData) ? taskData : []);
-    } catch {
-      setTasks([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [filter.category, filter.q, filter.city]
+  );
 
   useEffect(() => {
     loadTasks();
@@ -90,7 +101,7 @@ export default function MapScreen() {
       <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={MOSCOW} showsUserLocation>
         {withCoords.map((task) => (
           <Marker
-            key={task.id}
+            key={String(task.id)}
             coordinate={{ latitude: task.lat as number, longitude: task.lng as number }}
             onPress={() => setSelected(task)}
           >
@@ -102,7 +113,10 @@ export default function MapScreen() {
       <SafeAreaView style={styles.overlay} edges={["top"]}>
         <View style={styles.toggleRow}>
           <View style={styles.segment}>
-            <TouchableOpacity style={styles.segmentBtn} onPress={() => navigation.goBack()}>
+            <TouchableOpacity
+              style={styles.segmentBtn}
+              onPress={() => navigation.navigate("TasksList", { category: filter.category, q: filter.q, city: filter.city })}
+            >
               <Text style={styles.segmentInactive}>{t("list_view")}</Text>
             </TouchableOpacity>
             <View style={styles.segmentActive}>
@@ -112,7 +126,10 @@ export default function MapScreen() {
         </View>
       </SafeAreaView>
 
-      <TouchableOpacity style={styles.countPill} onPress={() => navigation.goBack()}>
+      <TouchableOpacity
+        style={styles.countPill}
+        onPress={() => navigation.navigate("TasksList", { category: filter.category, q: filter.q, city: filter.city })}
+      >
         <Ionicons name="list-outline" size={18} color={colors.black} />
         <Text style={styles.countText}>
           {tasks.length} {t("orders_count")}
@@ -138,8 +155,11 @@ export default function MapScreen() {
             </TouchableOpacity>
             <TaskCardRow
               task={selected}
-              category={categories.find((c) => c.id === selected.category)}
-              onPress={() => {}}
+              category={categories.find((c) => String(c.id) === String(selected.category))}
+              onPress={() => {
+                setSelected(null);
+                navigation.navigate("TaskDetail", { taskId: String(selected.id) });
+              }}
             />
           </View>
         ) : (

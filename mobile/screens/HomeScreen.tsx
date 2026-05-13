@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -92,7 +91,7 @@ export default function HomeScreen() {
         {user?.role === "customer" && (
           <PrimaryButton
             title={t("create_task")}
-            onPress={() => Alert.alert(t("soon"), t("create_task_soon"))}
+            onPress={() => navigation.navigate("CreateTask")}
             style={styles.createBtn}
           />
         )}
@@ -104,7 +103,7 @@ export default function HomeScreen() {
           <View style={styles.catGrid}>
             {categories.map((c) => (
               <View key={c.id} style={styles.catCell}>
-                <CategoryTile cat={c} onPress={() => {}} />
+                <CategoryTile cat={c} onPress={() => navigation.navigate("TasksList", { category: String(c.id) })} />
               </View>
             ))}
           </View>
@@ -112,7 +111,7 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>{t("open_tasks")}</Text>
-          <TouchableOpacity onPress={load}>
+          <TouchableOpacity onPress={() => navigation.navigate("TasksList", { q: search.trim() || undefined })}>
             <Text style={styles.viewAll}>
               {t("view_all")} →
             </Text>
@@ -124,13 +123,13 @@ export default function HomeScreen() {
         ) : (
           <View style={styles.taskList}>
             {filteredTasks.map((task) => {
-              const cat = categories.find((x) => x.id === task.category);
+              const cat = categories.find((x) => String(x.id) === String(task.category));
               return (
                 <TaskCardRow
-                  key={task.id}
+                  key={String(task.id)}
                   task={task}
                   category={cat}
-                  onPress={() => Alert.alert(t("soon"), "Карточка заказа — в следующей версии.")}
+                  onPress={() => navigation.navigate("TaskDetail", { taskId: String(task.id) })}
                 />
               );
             })}

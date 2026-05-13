@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,6 +8,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { CompositeNavigationProp } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../src/api";
 import { useAuth } from "../src/context/AuthContext";
@@ -16,6 +19,12 @@ import { useLang } from "../src/context/LangContext";
 import { timeAgo } from "../src/utils/timeAgo";
 import { colors, spacing, typography } from "../src/theme";
 import { EmptyState } from "../components/EmptyState";
+import type { MainTabParamList, RootStackParamList } from "../src/navigation/types";
+
+type Nav = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, "Chats">,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 type ChatRow = {
   id: number | string;
@@ -37,6 +46,7 @@ function avatarColor(name: string) {
 }
 
 export default function ChatsScreen() {
+  const navigation = useNavigation<Nav>();
   const { user } = useAuth();
   const { t, lang } = useLang();
   const [tab, setTab] = useState<"open" | "in_progress" | "completed" | "archived">("open");
@@ -99,7 +109,7 @@ export default function ChatsScreen() {
               <TouchableOpacity
                 key={String(c.id)}
                 style={styles.row}
-                onPress={() => Alert.alert(t("soon"), t("chat_soon"))}
+                onPress={() => navigation.navigate("ChatDetail", { chatId: String(c.id) })}
                 activeOpacity={0.85}
               >
                 <View style={[styles.avatar, { backgroundColor: avatarColor(name) }]}>

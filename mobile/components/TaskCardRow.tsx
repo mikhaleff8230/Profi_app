@@ -7,16 +7,19 @@ import { Badge } from "./Badge";
 import { colors, spacing } from "../src/theme";
 
 export type TaskItem = {
-  id: number;
+  id: string | number;
   title: string;
   description?: string | null;
   budget?: number | null;
   city?: string | null;
   created_at?: string | null;
-  category?: number | null;
+  category?: string | number | null;
+  status?: string;
+  lat?: number | null;
+  lng?: number | null;
 };
 
-export type CategoryItem = { id: number; name_ru: string; name_ro: string };
+export type CategoryItem = { id: number | string; name_ru: string; name_ro: string };
 
 type Props = {
   task: TaskItem;
