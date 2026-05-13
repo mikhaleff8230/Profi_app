@@ -44,10 +44,17 @@ function Find-PythonFromRegistry {
 function Find-PythonFromWhere {
     foreach ($cmdName in @("python", "python3")) {
         try {
-            $lines = & where.exe $cmdName 2>$null
-            if (-not $lines) { continue }
-            foreach ($line in $lines) {
+            $cmd = Get-Command $cmdName -ErrorAction SilentlyContinue
+            if ($cmd -and $cmd.Source -match "\.(exe|EXE)$" -and ($cmd.Source -notmatch "WindowsApps")) {
+                return @{ Launcher = $false; Path = $cmd.Source }
+            }
+        } catch { }
+        try {
+            $raw = & cmd.exe /c "where $cmdName 2>nul"
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($raw)) { continue }
+            foreach ($line in ($raw -split "`r?`n")) {
                 $line = [string]$line.Trim()
+                if (-not $line) { continue }
                 if ($line -match "\.exe$" -and ($line -notmatch "WindowsApps") -and (Test-Path -LiteralPath $line)) {
                     return @{ Launcher = $false; Path = $line }
                 }
@@ -85,6 +92,35 @@ function Find-SystemPython {
     foreach ($cp in $condaPaths) {
         if ($cp -and (Test-Path -LiteralPath $cp)) {
             return @{ Launcher = $false; Path = (Resolve-Path -LiteralPath $cp).ProviderPath }
+        }
+    }
+
+    $pyTags = @("Python314", "Python313", "Python312", "Python311", "Python310", "Python39", "Python38")
+    $pyBases = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Python"),
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)}
+    )
+    foreach ($base in $pyBases) {
+        if (-not $base -or -not (Test-Path -LiteralPath $base)) { continue }
+        foreach ($tag in $pyTags) {
+            $candidate = Join-Path (Join-Path $base $tag) "python.exe"
+            if (Test-Path -LiteralPath $candidate) {
+                return @{ Launcher = $false; Path = (Resolve-Path -LiteralPath $candidate).ProviderPath }
+            }
+        }
+    }
+
+    $pyenvRoot = Join-Path $env:USERPROFILE ".pyenv\pyenv-win\versions"
+    if (Test-Path -LiteralPath $pyenvRoot) {
+        $pv = Get-ChildItem -Path $pyenvRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            Select-Object -First 5
+        foreach ($d in $pv) {
+            $candidate = Join-Path $d.FullName "python.exe"
+            if (Test-Path -LiteralPath $candidate) {
+                return @{ Launcher = $false; Path = (Resolve-Path -LiteralPath $candidate).ProviderPath }
+            }
         }
     }
 
@@ -132,8 +168,11 @@ if (-not $venvPy) {
     $sys = Find-SystemPython
     if ($null -eq $sys) {
         Write-Host "Python not found." -ForegroundColor Red
+        Write-Host "If you typed 'python' in the console and got an error, use this script instead (it finds Python without PATH):" -ForegroundColor Yellow
+        Write-Host "   .\run_mvp.ps1" -ForegroundColor Cyan
+        Write-Host "Or list candidates:   .\find_python.ps1" -ForegroundColor Cyan
         Write-Host "1) Install from https://www.python.org/downloads/ and enable 'Add python.exe to PATH'" -ForegroundColor Yellow
-        Write-Host "2) Or set full path, then run this script again:" -ForegroundColor Yellow
+        Write-Host "2) Or set full path, then run again:" -ForegroundColor Yellow
         Write-Host '   $env:PROFFI_PYTHON = "C:\Users\YOU\AppData\Local\Programs\Python\Python312\python.exe"' -ForegroundColor Cyan
         exit 1
     }
