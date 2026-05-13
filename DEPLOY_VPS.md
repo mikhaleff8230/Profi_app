@@ -45,14 +45,13 @@ deactivate
 
 ```bash
 cd /var/www/proffi/frontend
-cp .env.example .env
+cp env.vps.template .env
 nano .env
 npm ci
 npm run build
 ```
 
-Required frontend `.env` value:
-- `REACT_APP_API_URL=http://<your-vps-ip>` or `https://<your-domain>`
+Шаблон: `frontend/env.vps.template` (в `.env` нужен **`REACT_APP_API_URL`** — origin фронта, **без** суффикса `/api`; запросы пойдут на `…/api` через Nginx). Подробнее — `frontend/.env.example`.
 
 ## 5) systemd service (backend)
 
