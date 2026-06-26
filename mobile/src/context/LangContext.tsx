@@ -1,19 +1,13 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo } from "react";
 import type { Lang } from "../i18n";
 import { translate } from "../i18n";
 
-type LangCtx = {
-  lang: Lang;
-  setLang: (l: Lang) => void;
-  t: (key: string) => string;
-};
-
+type LangCtx = { lang: Lang; t: (key: string) => string };
 const LangContext = createContext<LangCtx | null>(null);
 
 export function LangProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLang] = useState<Lang>("ru");
-  const t = useCallback((key: string) => translate(lang, key), [lang]);
-  const value = useMemo(() => ({ lang, setLang, t }), [lang, t]);
+  const t = useCallback((key: string) => translate("ru", key), []);
+  const value = useMemo(() => ({ lang: "ru" as const, t }), [t]);
   return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
 }
 

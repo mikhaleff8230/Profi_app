@@ -96,6 +96,46 @@ def test_login_wrong_password(ctx):
     assert r.status_code == 401
 
 
+def test_check_phone_registered(ctx):
+    r = ctx["s"].post(f"{API}/auth/check-phone", json={"phone": ctx["cust_phone"]})
+    assert r.status_code == 200
+    assert r.json()["registered"] is True
+    unknown = "+7999" + str(int(time.time() * 1000))[-7:]
+    r2 = ctx["s"].post(f"{API}/auth/check-phone", json={"phone": unknown})
+    assert r2.status_code == 200
+    assert r2.json()["registered"] is False
+
+
+def test_check_phone_invalid(ctx):
+    r = ctx["s"].post(f"{API}/auth/check-phone", json={"phone": "+700"})
+    assert r.status_code == 400
+
+
+def test_register_phone_with_email(ctx):
+    p = "+373" + str(int(time.time() * 1000))[-9:]
+    em = f"m{uuid.uuid4().hex[:8]}@x.test"
+    r = ctx["s"].post(f"{API}/auth/register-phone", json={
+        "phone": p, "password": "pass1234", "name": "Mail User", "role": "customer",
+        "email": em
+    })
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["email"] == em.lower()
+
+
+def test_register_duplicate_email(ctx):
+    p1 = "+3739" + f"{abs(uuid.uuid4().int % 10**9):09d}"
+    p2 = "+3738" + f"{abs(uuid.uuid4().int % 10**9):09d}"
+    em = f"d{uuid.uuid4().hex[:8]}@dup.test"
+    r1 = ctx["s"].post(f"{API}/auth/register-phone", json={
+        "phone": p1, "password": "pass1234", "name": "A", "role": "customer", "email": em
+    })
+    assert r1.status_code == 200
+    r2 = ctx["s"].post(f"{API}/auth/register-phone", json={
+        "phone": p2, "password": "pass1234", "name": "B", "role": "customer", "email": em
+    })
+    assert r2.status_code == 400
+
+
 def test_me(ctx):
     r = ctx["s"].get(f"{API}/auth/me", headers={"Authorization": f"Bearer {ctx['cust_token']}"})
     assert r.status_code == 200

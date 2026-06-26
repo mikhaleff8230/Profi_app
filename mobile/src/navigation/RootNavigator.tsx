@@ -1,5 +1,6 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavigationContainer, DefaultTheme, type Theme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -7,9 +8,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { useLang } from "../context/LangContext";
 import { colors } from "../theme";
-import AuthScreen from "../../screens/AuthScreen";
+import WelcomeAuthScreen from "../../screens/auth/WelcomeAuthScreen";
+import PhoneAuthScreen from "../../screens/auth/PhoneAuthScreen";
 import LoginStubScreen from "../../screens/LoginStubScreen";
-import RegisterStubScreen from "../../screens/RegisterStubScreen";
 import HomeScreen from "../../screens/HomeScreen";
 import OrdersScreen from "../../screens/OrdersScreen";
 import ChatsScreen from "../../screens/ChatsScreen";
@@ -21,6 +22,7 @@ import CreateTaskScreen from "../../screens/CreateTaskScreen";
 import ChatDetailScreen from "../../screens/ChatDetailScreen";
 import SpecialistProfileScreen from "../../screens/SpecialistProfileScreen";
 import type { AuthStackParamList, MainTabParamList, RootStackParamList } from "./types";
+import { getTabBarStyle } from "./tabBar";
 
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
 const AppStackNav = createNativeStackNavigator<RootStackParamList>();
@@ -40,18 +42,17 @@ const navTheme: Theme = {
 
 function MainTabs() {
   const { t } = useLang();
+  const insets = useSafeAreaInsets();
+  const tabBarStyle = getTabBarStyle(insets);
+
   return (
     <Tab.Navigator
+      safeAreaInsets={{ top: 0, right: 0, bottom: insets.bottom, left: 0 }}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.black,
         tabBarInactiveTintColor: colors.neutral400,
-        tabBarStyle: {
-          borderTopColor: colors.neutral100,
-          backgroundColor: colors.white,
-          paddingTop: 4,
-          height: 58,
-        },
+        tabBarStyle,
         tabBarLabelStyle: { fontSize: 10, fontWeight: "600" },
         tabBarIcon: ({ color, size }) => {
           const map: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
@@ -92,9 +93,9 @@ export function RootNavigator() {
 
   if (loading) {
     return (
-      <View style={styles.splash}>
+      <SafeAreaView style={styles.splash} edges={["top", "bottom", "left", "right"]}>
         <ActivityIndicator size="large" color={colors.black} />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -103,10 +104,10 @@ export function RootNavigator() {
       {user ? (
         <LoggedInStack />
       ) : (
-        <AuthStackNav.Navigator screenOptions={{ headerShown: false }} initialRouteName="AuthMain">
-          <AuthStackNav.Screen name="AuthMain" component={AuthScreen} />
+        <AuthStackNav.Navigator screenOptions={{ headerShown: false }} initialRouteName="Welcome">
+          <AuthStackNav.Screen name="Welcome" component={WelcomeAuthScreen} />
+          <AuthStackNav.Screen name="PhoneEntry" component={PhoneAuthScreen} />
           <AuthStackNav.Screen name="Login" component={LoginStubScreen} />
-          <AuthStackNav.Screen name="Register" component={RegisterStubScreen} />
         </AuthStackNav.Navigator>
       )}
     </NavigationContainer>

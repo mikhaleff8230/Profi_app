@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { TabScreenLayout } from "../components/TabScreenLayout";
 import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -18,7 +18,7 @@ import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { timeAgo } from "../src/utils/timeAgo";
 import { colors, radii, spacing, typography } from "../src/theme";
-import { LangSwitcher } from "../components/LangSwitcher";
+
 import { PrimaryButton } from "../components/PrimaryButton";
 import { EmptyState } from "../components/EmptyState";
 import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
@@ -71,10 +71,9 @@ export default function OrdersScreen() {
 
   if (user.role === "specialist") {
     return (
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <TabScreenLayout>
         <View style={styles.header}>
           <Text style={styles.title}>{t("my_applications")}</Text>
-          <LangSwitcher />
         </View>
         <TouchableOpacity style={styles.linkRow} onPress={() => navigation.navigate("TasksList", {})}>
           <Text style={styles.linkText}>{t("search_orders")} →</Text>
@@ -115,16 +114,15 @@ export default function OrdersScreen() {
             ))
           )}
         </ScrollView>
-      </SafeAreaView>
+      </TabScreenLayout>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <TabScreenLayout>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <Text style={styles.title}>{t("my_tasks")}</Text>
-          <LangSwitcher />
         </View>
         <PrimaryButton title={t("create_task")} onPress={() => navigation.navigate("CreateTask")} style={styles.create} />
         {loading ? (
@@ -143,12 +141,11 @@ export default function OrdersScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </TabScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
   scroll: { paddingHorizontal: spacing.xl, paddingBottom: 32 },
   header: {
     flexDirection: "row",

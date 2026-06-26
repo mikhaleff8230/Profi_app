@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useLang } from "../i18n";
 import { useAuth } from "../auth";
-import { TopBar, LangSwitcher } from "../components/Layout";
+import { TopBar } from "../components/Layout";
 import { formatApiError } from "../api";
 import { applyPhoneMask } from "../utils/phoneMask";
 
@@ -41,7 +41,7 @@ export default function Register() {
 
   return (
     <div className="flex flex-col h-full bg-lavender-50" data-testid="register-page">
-      <TopBar title="" right={<LangSwitcher />} />
+      <TopBar title="" />
       <form onSubmit={onSubmit} className="flex-1 flex flex-col px-6 pb-8">
         <h1 className="text-3xl font-extrabold tracking-tight text-black mb-6">{t("register")}</h1>
 

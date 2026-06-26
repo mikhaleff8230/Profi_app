@@ -4,7 +4,7 @@ import * as Lucide from "lucide-react";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { useLang } from "../i18n";
-import { LangSwitcher, timeAgo, Badge } from "../components/Layout";
+import { timeAgo, Badge } from "../components/Layout";
 
 function CategoryTile({ cat, onClick }) {
   const Icon = Lucide[cat.icon] || Lucide.LayoutGrid;
@@ -19,7 +19,7 @@ function CategoryTile({ cat, onClick }) {
         <Icon size={26} strokeWidth={1.6} className="text-black" />
       </div>
       <span className="text-xs font-semibold text-center text-black leading-tight">
-        {lang === "ru" ? cat.name_ru : cat.name_ro}
+        {cat.name_ru}
       </span>
     </button>
   );
@@ -54,7 +54,6 @@ export default function Home() {
             {user?.role === "customer" ? t("home_title_customer") : t("home_title_specialist")}
           </h1>
         </div>
-        <LangSwitcher />
       </div>
 
       <form onSubmit={onSearchSubmit} className="px-5 mb-5">
@@ -121,7 +120,7 @@ export default function Home() {
                 </div>
                 <p className="text-sm text-neutral-500 line-clamp-2 mb-3">{task.description}</p>
                 <div className="flex items-center gap-3 text-xs text-neutral-400">
-                  {cat && <span className="font-semibold">{lang === "ru" ? cat.name_ru : cat.name_ro}</span>}
+                  {cat && <span className="font-semibold">{cat.name_ru}</span>}
                   <span>•</span>
                   <span className="flex items-center gap-1"><Lucide.MapPin size={12} /> {task.city}</span>
                   <span className="ml-auto">{timeAgo(task.created_at, t)}</span>

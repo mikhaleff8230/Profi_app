@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Linking, Platform } from "react-native";
 import { apiFetch, getToken, setToken } from "../api";
 
 export type UserRole = "customer" | "specialist";
@@ -18,6 +19,21 @@ export type User = {
   reviews_count?: number;
 };
 
+/** В dev (`expo start`) пропускаем экран входа. В .env: EXPO_PUBLIC_SKIP_AUTH=0 — снова проверять логин. */
+const DEV_SKIP_AUTH =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  (process.env.EXPO_PUBLIC_SKIP_AUTH ?? "0") !== "0";
+
+const DEV_MOCK_USER: User = {
+  id: "local-dev-user",
+  name: "Локальная разработка",
+  role: "specialist",
+  email: "dev@local",
+  is_verified: true,
+  phone: "+70000000000",
+};
+
 type AuthCtx = {
   user: User | null;
   loading: boolean;
@@ -33,7 +49,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const consumeOAuthUrl = useCallback(async (url: string | null | undefined): Promise<boolean> => {
+    if (!url) return false;
+    const tokenMatch = url.match(/[?&]token=([^&#]+)/);
+    if (!tokenMatch?.[1]) return false;
+    const token = decodeURIComponent(tokenMatch[1].replace(/\+/g, "%20"));
+    await setToken(token);
+    const me = await apiFetch("/auth/me", { method: "GET" });
+    setUser(me as User);
+    if (Platform.OS === "web" && typeof window !== "undefined" && window.history?.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname || "/");
+    }
+    return true;
+  }, []);
+
   const refreshMe = useCallback(async () => {
+    if (DEV_SKIP_AUTH) {
+      setUser(DEV_MOCK_USER);
+      return;
+    }
     const token = await getToken();
     if (!token) {
       setUser(null);
@@ -46,8 +80,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true;
     (async () => {
+      if (DEV_SKIP_AUTH) {
+        if (alive) {
+          setUser(DEV_MOCK_USER);
+          setLoading(false);
+        }
+        return;
+      }
       try {
-        await refreshMe();
+        let consumed = false;
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          consumed = await consumeOAuthUrl(window.location.href);
+        } else {
+          consumed = await consumeOAuthUrl(await Linking.getInitialURL());
+        }
+        if (!consumed) {
+          await refreshMe();
+        }
       } catch {
         await setToken(null);
         if (alive) setUser(null);
@@ -58,7 +107,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       alive = false;
     };
-  }, [refreshMe]);
+  }, [consumeOAuthUrl, refreshMe]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return undefined;
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      consumeOAuthUrl(url).catch(() => undefined);
+    });
+    return () => sub.remove();
+  }, [consumeOAuthUrl]);
 
   const signIn = useCallback(async (token: string, u: User) => {
     await setToken(token);

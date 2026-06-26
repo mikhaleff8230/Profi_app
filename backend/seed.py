@@ -9,6 +9,7 @@ API: POST /api/admin/seed (header X-Admin-Token)
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import Any, Callable
 
@@ -27,6 +28,12 @@ SEED_ADMIN_PASSWORD = "admin123"
 SEED_CUSTOMER_PASSWORD = "customer123"
 SEED_SPECIALIST_PASSWORD = "specialist123"
 
+# Админ-специалист (Sancan): телефон + email; пароль — SEED_SANCAN_SPECIALIST_PASSWORD или значение ниже.
+SANCAN_SPECIALIST_PHONE = "+79031416581"
+SANCAN_SPECIALIST_EMAIL = "sale@sancan.ru"
+SANCAN_SPECIALIST_NAME = "Alexander"
+SANCAN_SPECIALIST_PASSWORD = os.environ.get("SEED_SANCAN_SPECIALIST_PASSWORD", "SancanProffi2025!")
+
 
 def _user_orm(
     user_id: str,
@@ -38,6 +45,7 @@ def _user_orm(
     hash_password: Callable[[str], str],
     now_iso: Callable[[], str],
     email: str | None = None,
+    email_verified: bool = False,
 ) -> UserORM:
     return UserORM(
         id=user_id,
@@ -53,6 +61,7 @@ def _user_orm(
         avatar=None,
         created_at=now_iso(),
         email=email,
+        email_verified=email_verified,
     )
 
 
@@ -67,11 +76,23 @@ async def _upsert_user(
     role: str,
     city: str | None,
     email: str | None = None,
+    email_verified: bool = False,
 ) -> str:
     p = normalize_phone(phone)
     existing = await session.scalar(select(UserORM).where(UserORM.phone == p))
     uid = existing.id if existing else str(uuid.uuid4())
-    u = _user_orm(uid, p, password_plain, name, role, city, hash_password, now_iso, email=email)
+    u = _user_orm(
+        uid,
+        p,
+        password_plain,
+        name,
+        role,
+        city,
+        hash_password,
+        now_iso,
+        email=email,
+        email_verified=email_verified,
+    )
     if existing:
         await session.execute(
             update(UserORM)
@@ -82,6 +103,7 @@ async def _upsert_user(
                 role=u.role,
                 city=u.city,
                 email=u.email,
+                email_verified=u.email_verified,
             )
         )
         return "updated"
@@ -166,6 +188,21 @@ async def run_seed(
             "Seed Specialist",
             "specialist",
             "Chișinău",
+        )
+    )
+    summary["users"].append(
+        await _upsert_user(
+            session,
+            SANCAN_SPECIALIST_PHONE,
+            hash_password,
+            now_iso,
+            normalize_phone,
+            SANCAN_SPECIALIST_PASSWORD,
+            SANCAN_SPECIALIST_NAME,
+            "specialist",
+            None,
+            email=SANCAN_SPECIALIST_EMAIL,
+            email_verified=True,
         )
     )
 

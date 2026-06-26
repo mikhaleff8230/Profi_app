@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenLayout, useScrollBottomPadding } from "../components/ScreenLayout";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +32,7 @@ export default function SpecialistProfileScreen() {
   const { t } = useLang();
   const [spec, setSpec] = useState<Spec | null>(null);
   const [demo, setDemo] = useState(false);
+  const scrollPadding = useScrollBottomPadding(40);
 
   useEffect(() => {
     apiFetch(`/specialists/${specialistId}`, { method: "GET" })
@@ -46,7 +48,7 @@ export default function SpecialistProfileScreen() {
 
   if (!spec) {
     return (
-      <SafeAreaView style={styles.center}>
+      <SafeAreaView style={styles.center} edges={["top", "bottom", "left", "right"]}>
         <ActivityIndicator />
         <Text style={styles.muted}>{t("loading")}</Text>
       </SafeAreaView>
@@ -54,14 +56,14 @@ export default function SpecialistProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom"]}>
+    <ScreenLayout>
       <ScreenHeader title="" onBack={() => navigation.goBack()} />
       {demo && (
         <View style={styles.demoBar}>
           <Text style={styles.demoTxt}>{t("demo_data_banner")}</Text>
         </View>
       )}
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, scrollPadding]}>
         <View style={styles.hero}>
           <View style={styles.avatar}>
             <Text style={styles.avatarLetter}>{spec.name.charAt(0).toUpperCase()}</Text>
@@ -103,17 +105,16 @@ export default function SpecialistProfileScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   muted: { marginTop: 8, color: colors.neutral400 },
   demoBar: { backgroundColor: colors.lavender100, paddingVertical: 6 },
   demoTxt: { textAlign: "center", fontSize: 11, color: colors.neutral600 },
-  scroll: { paddingHorizontal: spacing.xl, paddingBottom: 40 },
+  scroll: { paddingHorizontal: spacing.xl },
   hero: { alignItems: "center", paddingVertical: 24, borderBottomWidth: 1, borderBottomColor: colors.neutral100, marginBottom: 16 },
   avatar: {
     width: 96,

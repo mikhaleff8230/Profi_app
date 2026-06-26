@@ -4,7 +4,7 @@ import * as Lucide from "lucide-react";
 import { api, API } from "../api";
 import { useLang } from "../i18n";
 import { useGeo } from "../geo";
-import { LangSwitcher, Empty } from "../components/Layout";
+import { Empty } from "../components/Layout";
 import { TaskCard } from "../components/TaskCard";
 import FiltersSheet from "../components/FiltersSheet";
 
@@ -19,7 +19,7 @@ function StoryTile({ s, lang }) {
       <span className="w-2 h-2 rounded-full bg-red-500 self-end" />
       <Icon size={56} strokeWidth={1.4} className="absolute right-1 top-6 text-white/50" />
       <p className="text-sm font-extrabold leading-tight text-white drop-shadow relative z-10">
-        {lang === "ru" ? s.title_ru : s.title_ro}
+        {s.title_ru}
       </p>
     </div>
   );
@@ -81,7 +81,6 @@ export default function TasksList() {
               className="px-5 py-2 rounded-full text-neutral-500 text-sm font-bold transition-colors hover:text-black"
             >{t("map_view")}</button>
           </div>
-          <LangSwitcher />
         </div>
 
         {/* Search + filters */}
@@ -118,7 +117,7 @@ export default function TasksList() {
         {currentCat && (
           <div className="flex items-center gap-2 -mb-1">
             <span className="bg-black text-white rounded-full px-3 py-1 text-xs font-semibold flex items-center gap-1.5">
-              {lang === "ru" ? currentCat.name_ru : currentCat.name_ro}
+              {currentCat.name_ru}
               <button
                 onClick={() => { const np = new URLSearchParams(params); np.delete("category"); setParams(np); }}
                 className="hover:opacity-70"

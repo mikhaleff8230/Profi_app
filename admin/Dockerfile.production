@@ -1,0 +1,42 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat python3 make g++
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV CI=true
+ENV HUSKY=0
+ENV DISABLE_PWA=true
+ENV NODE_ENV=development
+
+COPY package.json package-lock.json ./
+RUN npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+
+COPY . .
+
+ARG NEXT_PUBLIC_REST_API_ENDPOINT=https://api.treabo.ru
+ARG NEXT_PUBLIC_API_URL=https://api.treabo.ru
+ARG NEXT_PUBLIC_SHOP_URL=https://treabo.ru
+ENV NEXT_PUBLIC_REST_API_ENDPOINT=$NEXT_PUBLIC_REST_API_ENDPOINT
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SHOP_URL=$NEXT_PUBLIC_SHOP_URL
+
+ENV NODE_ENV=production
+ENV APPLICATION_MODE=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3002
+ENV NEXT_PUBLIC_DEFAULT_LANGUAGE=ru
+ENV NEXT_PUBLIC_ENABLE_MULTI_LANG=false
+ENV NEXT_PUBLIC_AVAILABLE_LANGUAGES=ru
+ENV NEXT_PUBLIC_AUTH_TOKEN_KEY=AUTH_CRED
+
+RUN npm run build
+RUN test -f .next/BUILD_ID
+
+COPY docker-start.sh /usr/local/bin/docker-start.sh
+RUN chmod +x /usr/local/bin/docker-start.sh
+
+EXPOSE 3002
+
+CMD ["/bin/sh", "/usr/local/bin/docker-start.sh"]

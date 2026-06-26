@@ -8,7 +8,7 @@
 cd mobile
 cp .env.example .env
 # Укажите URL бэкенда без /api, например:
-# EXPO_PUBLIC_API_URL=https://proffi.sancan.ru
+# EXPO_PUBLIC_API_URL=https://api.treabo.ru
 # Для телефона в той же Wi‑Fi сети, что и ПК с бэкендом:
 # EXPO_PUBLIC_API_URL=http://192.168.1.10:8001
 

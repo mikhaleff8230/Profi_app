@@ -16,7 +16,7 @@ export type MainTabParamList = {
 };
 
 export type AuthStackParamList = {
-  AuthMain: undefined;
+  Welcome: undefined;
+  PhoneEntry: { role: "customer" | "specialist" };
   Login: undefined;
-  Register: undefined;
 };

@@ -1,8 +1,8 @@
 /** Демо-данные, если API недоступен или вернул пусто (как заглушка на фронте). */
 export const MOCK_STORIES = [
-  { id: "spring", title_ru: "Что всплывает весной?", title_ro: "Ce iese la iveală primăvara?", color: "#9DB2C4" },
-  { id: "moments", title_ru: "Ради таких моментов", title_ro: "Pentru astfel de momente", color: "#A4B9D1" },
-  { id: "now", title_ru: "Здесь и сейчас", title_ro: "Aici și acum", color: "#B8C7DC" },
+  { id: "spring", title_ru: "Что всплывает весной?", color: "#9DB2C4" },
+  { id: "moments", title_ru: "Ради таких моментов", color: "#A4B9D1" },
+  { id: "now", title_ru: "Здесь и сейчас", color: "#B8C7DC" },
 ];
 
 export const MOCK_TASKS_LIST = [

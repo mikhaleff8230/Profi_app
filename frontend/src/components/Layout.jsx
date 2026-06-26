@@ -32,24 +32,6 @@ export function TopBar({ title, onBack, right }) {
   );
 }
 
-export function LangSwitcher({ className = "" }) {
-  const { lang, setLang } = useLang();
-  return (
-    <div className={`flex items-center gap-1 bg-lavender-50 rounded-full p-1 ${className}`}>
-      <button
-        data-testid="lang-ru-btn"
-        className={`px-3 py-1 text-xs font-bold rounded-full transition-all ${lang === "ru" ? "bg-black text-white" : "text-neutral-500"}`}
-        onClick={() => setLang("ru")}
-      >RU</button>
-      <button
-        data-testid="lang-ro-btn"
-        className={`px-3 py-1 text-xs font-bold rounded-full transition-all ${lang === "ro" ? "bg-black text-white" : "text-neutral-500"}`}
-        onClick={() => setLang("ro")}
-      >RO</button>
-    </div>
-  );
-}
-
 export function BottomTabs() {
   const { t } = useLang();
   const { user } = useAuth();

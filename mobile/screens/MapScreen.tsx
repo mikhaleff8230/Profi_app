@@ -1,47 +1,49 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import MapView, { Marker, type Region } from "react-native-maps";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
-import { Ionicons } from "@expo/vector-icons";
+import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
+import type { CategoryTileData } from "../components/CategoryTile";
 import { apiFetch } from "../src/api";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing, typography } from "../src/theme";
-import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
-import type { CategoryTileData } from "../components/CategoryTile";
+import {
+  buildYandexMapHtml,
+  formatMapOrderCount,
+  pointBalloon,
+  toYandexPoints,
+  yandexMapsApiKey,
+} from "../src/maps/yandexMapHtml";
 import type { RootStackParamList } from "../src/navigation/types";
 
-const MOSCOW: Region = {
-  latitude: 55.7558,
-  longitude: 37.6173,
-  latitudeDelta: 0.12,
-  longitudeDelta: 0.12,
-};
-
-type TaskWithGeo = TaskItem & { lat?: number | null; lng?: number | null };
-
 type R = RouteProp<RootStackParamList, "Map">;
+type TaskWithGeo = TaskItem & { lat?: number | null; lng?: number | null };
 
 export default function MapScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Map">>();
   const route = useRoute<R>();
   const filter = route.params || {};
-  const { t } = useLang();
-  const mapRef = useRef<MapView>(null);
+  const { t, lang } = useLang();
+  const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState<TaskWithGeo[]>([]);
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
   const [selected, setSelected] = useState<TaskWithGeo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [webviewReady, setWebviewReady] = useState(false);
+  const apiKey = yandexMapsApiKey();
+  const sheetPad = Math.max(insets.bottom, 16);
+  const floatBottom = 220 + insets.bottom;
 
   const loadTasks = useCallback(
     async (lat?: number, lng?: number) => {
@@ -62,21 +64,27 @@ export default function MapScreen() {
           apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" }),
         ]);
         setCategories(Array.isArray(catData) ? catData : []);
-        setTasks(Array.isArray(taskData) ? taskData : []);
+        setTasks(Array.isArray(taskData) ? (taskData as TaskWithGeo[]) : []);
+        setSelected(null);
       } catch {
         setTasks([]);
       } finally {
         setLoading(false);
       }
     },
-    [filter.category, filter.q, filter.city]
+    [filter.category, filter.city, filter.q]
   );
 
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
 
-  const withCoords = useMemo(() => tasks.filter((x) => x.lat != null && x.lng != null), [tasks]);
+  const points = useMemo(
+    () => toYandexPoints(tasks).map((point) => ({ ...point, balloon: pointBalloon(point) })),
+    [tasks]
+  );
+
+  const html = useMemo(() => (apiKey ? buildYandexMapHtml(points, apiKey) : ""), [apiKey, points]);
 
   const locate = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -85,30 +93,40 @@ export default function MapScreen() {
       return;
     }
     const loc = await Location.getCurrentPositionAsync({});
-    const { latitude, longitude } = loc.coords;
-    const next: Region = {
-      latitude,
-      longitude,
-      latitudeDelta: 0.08,
-      longitudeDelta: 0.08,
-    };
-    mapRef.current?.animateToRegion(next, 600);
-    loadTasks(latitude, longitude);
+    loadTasks(loc.coords.latitude, loc.coords.longitude);
+  };
+
+  const onMessage = (event: WebViewMessageEvent) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+      if (message.type === "ready") setWebviewReady(true);
+      if (message.type === "select") {
+        const task = tasks.find((item) => String(item.id) === String(message.payload?.id));
+        if (task) setSelected(task);
+      }
+    } catch {
+      /* ignore messages from the map runtime */
+    }
   };
 
   return (
     <View style={styles.root}>
-      <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={MOSCOW} showsUserLocation>
-        {withCoords.map((task) => (
-          <Marker
-            key={String(task.id)}
-            coordinate={{ latitude: task.lat as number, longitude: task.lng as number }}
-            onPress={() => setSelected(task)}
-          >
-            <View style={styles.dot} />
-          </Marker>
-        ))}
-      </MapView>
+      {apiKey ? (
+        <WebView
+          originWhitelist={["*"]}
+          source={{ html }}
+          onMessage={onMessage}
+          javaScriptEnabled
+          domStorageEnabled
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <View style={styles.missingKey}>
+          <Ionicons name="map-outline" size={42} color={colors.neutral500} />
+          <Text style={styles.missingTitle}>Яндекс.Карты</Text>
+          <Text style={styles.missingText}>Добавьте EXPO_PUBLIC_YANDEX_MAPS_API_KEY в mobile/.env</Text>
+        </View>
+      )}
 
       <SafeAreaView style={styles.overlay} edges={["top"]}>
         <View style={styles.toggleRow}>
@@ -127,31 +145,29 @@ export default function MapScreen() {
       </SafeAreaView>
 
       <TouchableOpacity
-        style={styles.countPill}
+        style={[styles.countPill, { bottom: floatBottom }]}
         onPress={() => navigation.navigate("TasksList", { category: filter.category, q: filter.q, city: filter.city })}
       >
         <Ionicons name="list-outline" size={18} color={colors.black} />
-        <Text style={styles.countText}>
-          {tasks.length} {t("orders_count")}
-        </Text>
+        <Text style={styles.countText}>{formatMapOrderCount(points.length, lang)}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.locateBtn} onPress={locate}>
+      <TouchableOpacity style={[styles.locateBtn, { bottom: floatBottom }]} onPress={locate}>
         <Ionicons name="navigate" size={22} color={colors.black} />
       </TouchableOpacity>
 
-      {loading && (
+      {(loading || (apiKey && !webviewReady && points.length > 0)) && (
         <View style={styles.loading}>
           <ActivityIndicator color={colors.black} />
         </View>
       )}
 
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: sheetPad }]}>
         <View style={styles.handle} />
         {selected ? (
           <View>
             <TouchableOpacity onPress={() => setSelected(null)}>
-              <Text style={styles.sheetClose}>✕</Text>
+              <Text style={styles.sheetClose}>×</Text>
             </TouchableOpacity>
             <TaskCardRow
               task={selected}
@@ -163,7 +179,9 @@ export default function MapScreen() {
             />
           </View>
         ) : (
-          <Text style={styles.sheetHint}>{t("map_open_tasks")}</Text>
+          <Text style={styles.sheetHint}>
+            {points.length ? t("map_open_tasks") : "Заказов с координатами пока нет"}
+          </Text>
         )}
       </View>
     </View>
@@ -201,7 +219,6 @@ const styles = StyleSheet.create({
   countPill: {
     position: "absolute",
     left: spacing.xl,
-    bottom: 220,
     zIndex: 3,
     flexDirection: "row",
     alignItems: "center",
@@ -219,7 +236,6 @@ const styles = StyleSheet.create({
   locateBtn: {
     position: "absolute",
     right: spacing.xl,
-    bottom: 220,
     zIndex: 3,
     width: 48,
     height: 48,
@@ -239,18 +255,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     zIndex: 1,
   },
-  dot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.black,
-    borderWidth: 3,
-    borderColor: colors.white,
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
+  missingKey: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xxl,
+    backgroundColor: colors.lavender50,
+    gap: spacing.sm,
   },
+  missingTitle: { ...typography.headline },
+  missingText: { ...typography.small, color: colors.neutral500, textAlign: "center" },
   sheet: {
     position: "absolute",
     left: 0,
@@ -261,7 +275,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 16,
-    paddingBottom: Platform.OS === "ios" ? 32 : 20,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 16,

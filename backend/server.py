@@ -203,6 +203,15 @@ class RegisterPhoneRequest(BaseModel):
     name: str
     role: str
     city: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class CheckPhoneRequest(BaseModel):
+    phone: str
+
+
+class CheckPhoneResponse(BaseModel):
+    registered: bool
 
 
 class RegisterEmailRequest(BaseModel):
@@ -463,6 +472,16 @@ async def register_with_email(body: RegisterEmailRequest, session: AsyncSession 
     return RegisterOtpResponse(email=em)
 
 
+@api_router.post("/auth/check-phone", response_model=CheckPhoneResponse)
+async def check_phone_registered(body: CheckPhoneRequest, session: AsyncSession = Depends(get_db)):
+    phone = normalize_phone(body.phone)
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if len(digits) < 10:
+        raise HTTPException(status_code=400, detail="Invalid phone")
+    u = await session.scalar(select(UserORM).where(UserORM.phone == phone))
+    return CheckPhoneResponse(registered=u is not None)
+
+
 @api_router.post("/auth/register-phone", response_model=AuthResponse)
 async def register_with_phone(body: RegisterPhoneRequest, session: AsyncSession = Depends(get_db)):
     if body.role not in ("customer", "specialist"):
@@ -473,6 +492,12 @@ async def register_with_phone(body: RegisterPhoneRequest, session: AsyncSession 
     exists = await session.scalar(select(UserORM).where(UserORM.phone == phone))
     if exists:
         raise HTTPException(status_code=400, detail="Phone already registered")
+    em: Optional[str] = None
+    if body.email is not None and str(body.email).strip() != "":
+        em = normalize_email(str(body.email))
+        taken = await session.scalar(select(UserORM).where(UserORM.email == em))
+        if taken:
+            raise HTTPException(status_code=400, detail="Email already in use")
     user_id = str(uuid.uuid4())
     u = UserORM(
         id=user_id,
@@ -487,6 +512,8 @@ async def register_with_phone(body: RegisterPhoneRequest, session: AsyncSession 
         services=[],
         avatar=None,
         created_at=now_iso(),
+        email=em,
+        email_verified=False,
     )
     session.add(u)
     await session.flush()

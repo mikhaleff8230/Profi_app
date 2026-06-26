@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "ru.sancan.proffi",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#f5f3ff"
       }
@@ -33,7 +34,9 @@
           "photosPermission": "Приложению нужен доступ к фото для смены аватара в профиле."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-font",
+      "expo-sqlite"
     ]
   }
 }

@@ -66,7 +66,7 @@ export function TaskCard({ task, categories = [], onClick }) {
         {cat && (
           <div className="flex items-center gap-2 text-xs text-neutral-400">
             <Lucide.Tag size={12} />
-            <span>{lang === "ru" ? cat.name_ru : cat.name_ro}</span>
+            <span>{cat.name_ru}</span>
             <span className="ml-auto flex items-center gap-1"><Lucide.Users size={12} /> {task.applications_count}</span>
           </div>
         )}

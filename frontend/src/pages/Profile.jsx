@@ -5,7 +5,7 @@ import * as Lucide from "lucide-react";
 import { api, formatApiError } from "../api";
 import { useAuth } from "../auth";
 import { useLang } from "../i18n";
-import { LangSwitcher } from "../components/Layout";
+
 import { fileUrl } from "../components/TaskCard";
 
 function Stat({ label, value }) {
@@ -87,7 +87,6 @@ export default function Profile() {
       <div className="px-5 pt-6 pb-3 flex items-center justify-between bg-white sticky top-0 z-20">
         <h1 className="text-2xl font-extrabold tracking-tight">{t("profile_title")}</h1>
         <div className="flex items-center gap-2">
-          <LangSwitcher />
           <button onClick={onLogout} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-lavender-50" data-testid="profile-logout-btn">
             <Lucide.Settings size={20} className="text-neutral-500" />
           </button>

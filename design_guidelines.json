@@ -82,7 +82,7 @@
     "Follow the exact monochrome aesthetic: pure white/very light lavender backgrounds, deep black text and primary buttons. NO gradients.",
     "Onboarding Screen: Center the illustration (Lucide icon), bold H1 title below it, Primary black button ('Хочу войти и выполнить заказ'), text secondary button below ('Хочу заказать услугу').",
     "Phone Login Screen: Light lavender/grey background. Back arrow top left, H1 title ('Ваш номер'). Phone input with flag emoji + country code. Disabled bottom button when empty, active black button & outlined secondary button when filled.",
-    "Add a language toggle (RU/RO) in the top right of appropriate screens.",
+    "Use Russian as the only interface language; do not show a language toggle.",
     "Ensure generous spacing (p-6, gap-6) between elements. Use flex-1 to push CTA buttons to the bottom of the screen.",
     "Add 'data-testid' to all interactive elements for automated testing."
   ]

@@ -4,7 +4,7 @@ import * as Lucide from "lucide-react";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { useLang } from "../i18n";
-import { Badge, timeAgo, Empty, LangSwitcher } from "../components/Layout";
+import { Badge, timeAgo, Empty } from "../components/Layout";
 
 export default function Orders() {
   const navigate = useNavigate();
@@ -31,7 +31,6 @@ export default function Orders() {
         <h1 className="text-2xl font-extrabold tracking-tight">
           {user.role === "customer" ? t("my_tasks") : t("my_applications")}
         </h1>
-        <LangSwitcher />
       </div>
 
       {user.role === "customer" && (

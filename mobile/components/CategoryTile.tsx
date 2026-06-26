@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii } from "../src/theme";
 
-export type CategoryTileData = { id: number; name_ru: string; name_ro: string; icon?: string };
+export type CategoryTileData = { id: number; name_ru: string; icon?: string };
 
 const FALLBACK_ICON: keyof typeof Ionicons.glyphMap = "grid-outline";
 
@@ -24,7 +24,7 @@ function iconFor(iconName?: string): keyof typeof Ionicons.glyphMap {
 
 export function CategoryTile({ cat, onPress }: { cat: CategoryTileData; onPress: () => void }) {
   const { lang } = useLang();
-  const label = lang === "ru" ? cat.name_ru : cat.name_ro;
+  const label = cat.name_ru;
   const icon = iconFor(cat.icon);
   return (
     <TouchableOpacity style={styles.wrap} onPress={onPress} activeOpacity={0.85}>

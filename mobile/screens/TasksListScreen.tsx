@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenLayout, useScrollBottomPadding } from "../components/ScreenLayout";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../src/api";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing, typography } from "../src/theme";
-import { LangSwitcher } from "../components/LangSwitcher";
+
 import { SearchBar } from "../components/SearchBar";
 import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
 import { ScreenHeader } from "../components/ScreenHeader";
@@ -24,7 +24,7 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { EmptyState } from "../components/EmptyState";
 import type { CategoryTileData } from "../components/CategoryTile";
 import type { RootStackParamList } from "../src/navigation/types";
-import { MOCK_STORIES, MOCK_TASKS_LIST } from "../src/mocks/demoData";
+import { MOCK_STORIES } from "../src/mocks/demoData";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type R = RouteProp<RootStackParamList, "TasksList">;
@@ -41,7 +41,6 @@ export default function TasksListScreen() {
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
   const [loading, setLoading] = useState(true);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [demoMode, setDemoMode] = useState(false);
 
   useEffect(() => {
     setCategory(route.params?.category || "");
@@ -73,16 +72,9 @@ export default function TasksListScreen() {
     const qs = params.toString();
     try {
       const data = await apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" });
-      if (Array.isArray(data) && data.length) {
-        setTasks(data);
-        setDemoMode(false);
-      } else {
-        setTasks(MOCK_TASKS_LIST as TaskItem[]);
-        setDemoMode(true);
-      }
+      setTasks(Array.isArray(data) ? (data as TaskItem[]) : []);
     } catch {
-      setTasks(MOCK_TASKS_LIST as TaskItem[]);
-      setDemoMode(true);
+      setTasks([]);
     } finally {
       setLoading(false);
     }
@@ -102,11 +94,12 @@ export default function TasksListScreen() {
   const currentCat = categories.find((c) => String(c.id) === String(category));
 
   const onSearchSubmit = () => loadTasks();
+  const scrollPadding = useScrollBottomPadding(32);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <ScreenHeader title={t("search_orders")} onBack={() => navigation.goBack()} right={<LangSwitcher />} />
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <ScreenLayout>
+      <ScreenHeader title={t("search_orders")} onBack={() => navigation.goBack()} />
+      <ScrollView contentContainerStyle={[styles.scroll, scrollPadding]} keyboardShouldPersistTaps="handled">
         <View style={styles.toggleRow}>
           <View style={styles.segment}>
             <View style={styles.segmentOn}>
@@ -128,23 +121,17 @@ export default function TasksListScreen() {
           </TouchableOpacity>
         </View>
 
-        {demoMode && (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>{t("demo_data_banner")}</Text>
-          </View>
-        )}
-
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stories}>
           {stories.map((s) => (
             <View key={s.id} style={[styles.storyCard, { backgroundColor: s.color || colors.lavender200 }]}>
-              <Text style={styles.storyTitle}>{lang === "ru" ? s.title_ru : s.title_ro}</Text>
+              <Text style={styles.storyTitle}>{s.title_ru}</Text>
             </View>
           ))}
         </ScrollView>
 
         {currentCat && (
           <Text style={styles.filterHint}>
-            {t("category")}: {lang === "ru" ? currentCat.name_ru : currentCat.name_ro}
+            {t("category")}: {currentCat.name_ru}
           </Text>
         )}
 
@@ -165,13 +152,12 @@ export default function TasksListScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
-  scroll: { paddingBottom: 32 },
+  scroll: {},
   toggleRow: { paddingHorizontal: spacing.xl, marginBottom: spacing.md },
   segment: {
     flexDirection: "row",
@@ -210,12 +196,4 @@ const styles = StyleSheet.create({
   filterHint: { paddingHorizontal: spacing.xl, marginBottom: 8, fontSize: 13, color: colors.neutral500 },
   list: { paddingHorizontal: spacing.xl, gap: 12 },
   loader: { marginTop: 24 },
-  banner: {
-    marginHorizontal: spacing.xl,
-    marginBottom: spacing.md,
-    padding: 10,
-    backgroundColor: colors.lavender100,
-    borderRadius: radii.md,
-  },
-  bannerText: { fontSize: 12, color: colors.neutral600, textAlign: "center" },
 });

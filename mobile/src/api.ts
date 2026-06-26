@@ -1,7 +1,8 @@
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 /**
- * Базовый URL API без суффикса /api (например https://proffi.sancan.ru или http://192.168.0.5:8001).
+ * Базовый URL API без суффикса /api (например https://api.treabo.ru или http://192.168.0.5:8001).
  * Задаётся в .env: EXPO_PUBLIC_API_URL
  */
 export const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/+$/, "");
@@ -29,7 +30,7 @@ export async function apiUploadFile(uri: string, mime = "image/jpeg", filename =
     throw new Error(text || `HTTP ${res.status}`);
   }
   if (!res.ok) {
-    const msg = typeof data?.detail === "string" ? data.detail : `HTTP ${res.status}`;
+    const msg = errorMessage(data, res.status);
     throw new Error(msg);
   }
   return data;
@@ -38,10 +39,21 @@ export async function apiUploadFile(uri: string, mime = "image/jpeg", filename =
 const TOKEN_KEY = "proffi_jwt";
 
 export async function getToken(): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return globalThis.localStorage?.getItem(TOKEN_KEY) ?? null;
+  }
   return SecureStore.getItemAsync(TOKEN_KEY);
 }
 
 export async function setToken(token: string | null): Promise<void> {
+  if (Platform.OS === "web") {
+    if (token) {
+      globalThis.localStorage?.setItem(TOKEN_KEY, token);
+    } else {
+      globalThis.localStorage?.removeItem(TOKEN_KEY);
+    }
+    return;
+  }
   if (token) {
     await SecureStore.setItemAsync(TOKEN_KEY, token);
   } else {
@@ -75,14 +87,19 @@ export async function apiFetch(
     throw new Error(text || `HTTP ${res.status}`);
   }
   if (!res.ok) {
-    const d = data?.detail;
-    const msg =
-      typeof d === "string"
-        ? d
-        : Array.isArray(d)
-          ? d.map((x: any) => x?.msg || JSON.stringify(x)).join(", ")
-          : `HTTP ${res.status}`;
-    throw new Error(msg);
+    throw new Error(errorMessage(data, res.status));
   }
   return data;
+}
+
+function errorMessage(data: any, status: number): string {
+  const d = data?.detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) return d.map((x: any) => x?.msg || JSON.stringify(x)).join(", ");
+  if (typeof data?.message === "string") return data.message;
+  if (data?.errors && typeof data.errors === "object") {
+    const parts = Object.values(data.errors).flat().filter(Boolean).map(String);
+    if (parts.length) return parts.join(", ");
+  }
+  return `HTTP ${status}`;
 }

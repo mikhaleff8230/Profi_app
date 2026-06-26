@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { TabScreenLayout } from "../components/TabScreenLayout";
 import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -18,7 +18,7 @@ import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { colors, spacing, typography } from "../src/theme";
 import { CategoryTile, type CategoryTileData } from "../components/CategoryTile";
-import { LangSwitcher } from "../components/LangSwitcher";
+
 import { PrimaryButton } from "../components/PrimaryButton";
 import { SearchBar } from "../components/SearchBar";
 import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
@@ -67,7 +67,7 @@ export default function HomeScreen() {
     user?.role === "customer" ? t("home_title_customer") : t("home_title_specialist");
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <TabScreenLayout>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.headerText}>
@@ -82,7 +82,6 @@ export default function HomeScreen() {
             >
             <Ionicons name="map-outline" size={22} color={colors.black} />
             </TouchableOpacity>
-            <LangSwitcher />
           </View>
         </View>
 
@@ -136,12 +135,11 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </TabScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
   scroll: { flex: 1 },
   content: { paddingHorizontal: spacing.xl, paddingBottom: 32 },
   header: {

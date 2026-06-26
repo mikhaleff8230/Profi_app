@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+﻿import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,14 +11,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { TabScreenLayout } from "../components/TabScreenLayout";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch, apiUploadFile, fileUrl } from "../src/api";
 import { useAuth, type User } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing, typography } from "../src/theme";
-import { LangSwitcher } from "../components/LangSwitcher";
+
 import { PrimaryButton } from "../components/PrimaryButton";
 import { CardLight } from "../components/CardLight";
 
@@ -28,6 +29,7 @@ type Stats = {
   active_chats?: number;
   posted?: number;
   open?: number;
+  open_tasks?: number;
   in_progress?: number;
 };
 
@@ -60,6 +62,12 @@ export default function ProfileScreen() {
   }, [user]);
 
   const onLogout = () => {
+    if (Platform.OS === "web") {
+      if (globalThis.confirm?.("Выйти из аккаунта?") ?? true) {
+        void logout();
+      }
+      return;
+    }
     Alert.alert("Выход", "Выйти из аккаунта?", [
       { text: t("cancel"), style: "cancel" },
       { text: "Выйти", style: "destructive", onPress: () => void logout() },
@@ -77,7 +85,7 @@ export default function ProfileScreen() {
       setEditingBio(false);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert("РћС€РёР±РєР°", e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -96,7 +104,7 @@ export default function ProfileScreen() {
       setEditingName(false);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert("РћС€РёР±РєР°", e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -105,7 +113,7 @@ export default function ProfileScreen() {
   const pickAvatar = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Доступ", "Нужно разрешение на фото");
+      Alert.alert("Р”РѕСЃС‚СѓРї", "РќСѓР¶РЅРѕ СЂР°Р·СЂРµС€РµРЅРёРµ РЅР° С„РѕС‚Рѕ");
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -125,7 +133,7 @@ export default function ProfileScreen() {
       setUser(data as User);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert("РћС€РёР±РєР°", e instanceof Error ? e.message : String(e));
     } finally {
       setUploading(false);
     }
@@ -137,13 +145,17 @@ export default function ProfileScreen() {
   const avatarUri = fileUrl(user.avatar);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <TabScreenLayout>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.title}>{t("profile_title")}</Text>
           <View style={styles.headerRight}>
-            <LangSwitcher />
-            <TouchableOpacity style={styles.iconBtn} onPress={onLogout}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={onLogout}
+              accessibilityRole="button"
+              accessibilityLabel="Выйти"
+            >
               <Ionicons name="settings-outline" size={22} color={colors.neutral500} />
             </TouchableOpacity>
           </View>
@@ -250,7 +262,7 @@ export default function ProfileScreen() {
             ) : (
               <>
                 <Stat label={t("stat_posted")} value={stats.posted ?? 0} />
-                <Stat label={t("stat_open")} value={stats.open ?? 0} />
+                <Stat label={t("stat_open")} value={stats.open ?? stats.open_tasks ?? 0} />
                 <Stat label={t("stat_in_progress")} value={stats.in_progress ?? 0} />
               </>
             )}
@@ -297,17 +309,17 @@ export default function ProfileScreen() {
 
         <View style={styles.footerMeta}>
           <Ionicons name="call-outline" size={16} color={colors.neutral500} />
-          <Text style={styles.footerText}>{user.phone || "—"}</Text>
+          <Text style={styles.footerText}>{user.phone || "вЂ”"}</Text>
           {user.city ? (
             <>
-              <Text style={styles.dot}>•</Text>
+              <Text style={styles.dot}>вЂў</Text>
               <Ionicons name="location-outline" size={16} color={colors.neutral500} />
               <Text style={styles.footerText}>{user.city}</Text>
             </>
           ) : null}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </TabScreenLayout>
   );
 }
 
@@ -321,7 +333,6 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.white },
   scroll: { paddingHorizontal: spacing.xl, paddingBottom: 40 },
   header: {
     flexDirection: "row",

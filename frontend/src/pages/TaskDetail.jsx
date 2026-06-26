@@ -158,7 +158,7 @@ export default function TaskDetail() {
               <h2 className="text-xl font-extrabold">{t("order_no")} {shortOrderId}</h2>
               <div className="flex items-center gap-2 text-sm text-neutral-500">
                 <Lucide.Clock size={14} />
-                <span>{t("order_left_at")} {new Date(task.created_at).toLocaleDateString(lang === "ru" ? "ru-RU" : "ro-RO", { day: "numeric", month: "long" })}</span>
+                <span>{t("order_left_at")} {new Date(task.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-emerald-600">
                 <Lucide.RefreshCw size={14} />
@@ -203,7 +203,7 @@ export default function TaskDetail() {
             {cat && (
               <div className="flex items-center gap-2 text-sm">
                 <Lucide.Tag size={16} className="text-neutral-500" />
-                <span className="font-semibold">{lang === "ru" ? cat.name_ru : cat.name_ro}</span>
+                <span className="font-semibold">{cat.name_ru}</span>
               </div>
             )}
             <div className="flex items-center gap-2 text-sm">

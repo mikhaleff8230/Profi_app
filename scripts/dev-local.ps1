@@ -18,6 +18,27 @@ function Resolve-VenvPython {
     return $null
 }
 
+function Find-SystemPythonPath {
+    $pyTags = @("Python314", "Python313", "Python312", "Python311", "Python310", "Python39", "Python38")
+    $pyBases = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Python"),
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)}
+    )
+    foreach ($base in $pyBases) {
+        if (-not $base -or -not (Test-Path -LiteralPath $base)) { continue }
+        foreach ($tag in $pyTags) {
+            $candidate = Join-Path (Join-Path $base $tag) "python.exe"
+            if (Test-Path -LiteralPath $candidate) { return (Resolve-Path -LiteralPath $candidate).ProviderPath }
+        }
+    }
+    foreach ($root in @("C:\Python314", "C:\Python313", "C:\Python312", "C:\Python311")) {
+        $direct = Join-Path $root "python.exe"
+        if (Test-Path -LiteralPath $direct) { return (Resolve-Path -LiteralPath $direct).ProviderPath }
+    }
+    return $null
+}
+
 function Ensure-BackendVenv {
     param([string]$BackendDir)
     Set-Location $BackendDir
@@ -27,7 +48,11 @@ function Ensure-BackendVenv {
     }
     $venvPy = Resolve-VenvPython $BackendDir
     if (-not $venvPy) {
-        if (Get-Command py -ErrorAction SilentlyContinue) {
+        $pp = if ($env:PROFFI_PYTHON) { $env:PROFFI_PYTHON.Trim() } else { "" }
+        if ($pp -and (Test-Path -LiteralPath $pp)) {
+            Write-Host "Creating .venv using PROFFI_PYTHON..."
+            & $pp @("-m", "venv", ".venv")
+        } elseif (Get-Command py -ErrorAction SilentlyContinue) {
             Write-Host "Creating .venv (py -3)..."
             py -3 -m venv .venv
         } elseif (Get-Command python -ErrorAction SilentlyContinue) {
@@ -37,9 +62,15 @@ function Ensure-BackendVenv {
             Write-Host "Creating .venv (python3)..."
             python3 -m venv .venv
         } else {
-            Write-Host "Python 3.11+ not in PATH. Install from https://www.python.org/downloads/" -ForegroundColor Red
-            Write-Host "Then re-run this script." -ForegroundColor Yellow
-            exit 1
+            $sysPy = Find-SystemPythonPath
+            if ($sysPy) {
+                Write-Host "Creating .venv using: $sysPy" -ForegroundColor Cyan
+                & $sysPy @("-m", "venv", ".venv")
+            } else {
+                Write-Host "Python 3.11+ not in PATH. Install from https://www.python.org/downloads/" -ForegroundColor Red
+                Write-Host "Or set PROFFI_PYTHON to python.exe, then re-run." -ForegroundColor Yellow
+                exit 1
+            }
         }
         $venvPy = Resolve-VenvPython $BackendDir
     }

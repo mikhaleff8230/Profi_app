@@ -1,0 +1,7 @@
+[submodule "pixer-api"]
+	path = pixer-api
+	url = git@github.com:mikhaleff8230/treabo-ru-api.git
+
+[submodule "shop"]
+	path = shop
+	url = git@github.com:mikhaleff8230/treabo-ru-shop.git

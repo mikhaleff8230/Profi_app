@@ -161,7 +161,7 @@ export default function CreateTask() {
                   className={`flex items-center gap-2 rounded-2xl p-3 text-left text-sm transition-all ${active ? "bg-black text-white" : "bg-lavender-50 text-black hover:bg-lavender-100"}`}
                 >
                   <Icon size={18} strokeWidth={1.8} />
-                  <span className="font-semibold truncate">{lang === "ru" ? c.name_ru : c.name_ro}</span>
+                  <span className="font-semibold truncate">{c.name_ru}</span>
                 </button>
               );
             })}

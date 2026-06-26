@@ -19,7 +19,7 @@ export type TaskItem = {
   lng?: number | null;
 };
 
-export type CategoryItem = { id: number | string; name_ru: string; name_ro: string };
+export type CategoryItem = { id: number | string; name_ru: string };
 
 type Props = {
   task: TaskItem;
@@ -29,7 +29,7 @@ type Props = {
 
 export function TaskCardRow({ task, category, onPress }: Props) {
   const { lang, t } = useLang();
-  const catName = category ? (lang === "ru" ? category.name_ru : category.name_ro) : null;
+  const catName = category ? (category.name_ru) : null;
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.top}>

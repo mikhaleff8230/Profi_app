@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Telescope } from "lucide-react";
 import { useLang } from "../i18n";
-import { LangSwitcher } from "../components/Layout";
+
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -9,7 +9,6 @@ export default function Onboarding() {
   return (
     <div className="flex flex-col h-full px-6 pb-8 pt-6 bg-white" data-testid="onboarding-page">
       <div className="flex justify-end">
-        <LangSwitcher />
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center gap-8 animate-fade-in-up">

@@ -61,7 +61,7 @@ export default function FiltersSheet({ categories, current, onClose, onApply }) 
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-semibold ${active ? "bg-black text-white" : "bg-lavender-50 text-black"}`}
                   >
                     <Icon size={14} />
-                    {lang === "ru" ? c.name_ru : c.name_ro}
+                    {c.name_ru}
                   </button>
                 );
               })}

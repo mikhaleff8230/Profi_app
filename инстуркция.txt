@@ -1,0 +1,17 @@
+
+
+
+cd C:\Proffi\project\mobile
+npm install
+npx expo start
+
+
+cd C:\Proffi\project\mobile
+npx expo start
+
+
+cd C:\Proffi\project\shop
+npm run build
+
+cd C:\Proffi\project\shop
+npm run dev -- -p 3011
