@@ -109,6 +109,8 @@ export type ProffiTask = {
   accepted_specialist_name?: string | null;
   city?: string | null;
   address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   budget?: number | null;
   response_price_mdl?: number | null;
   deadline?: string | null;

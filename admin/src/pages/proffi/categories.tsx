@@ -16,7 +16,6 @@ const emptyForm = {
   parent_id: '',
   icon: 'MoreHorizontal',
   name_ru: '',
-  name_ro: '',
   slug: '',
   is_active: true,
   sort_order: '0',
@@ -58,7 +57,6 @@ export default function TreaboCategories() {
       parent_id: row.parent_id || '',
       icon: row.icon || 'MoreHorizontal',
       name_ru: row.name_ru || '',
-      name_ro: row.name_ro || '',
       slug: row.slug || row.id,
       is_active: row.is_active ?? true,
       sort_order: String(row.sort_order ?? 0),
@@ -79,6 +77,7 @@ export default function TreaboCategories() {
       ...form,
       parent_id: form.parent_id || null,
       slug: form.slug || form.id,
+      name_ro: form.name_ru,
       sort_order: Number(form.sort_order || 0),
     };
 
@@ -150,13 +149,6 @@ export default function TreaboCategories() {
         />
         <input
           className="rounded border border-border-200 px-3 py-2"
-          placeholder="Denumire RO"
-          value={form.name_ro}
-          onChange={(e) => setForm({ ...form, name_ro: e.target.value })}
-          required
-        />
-        <input
-          className="rounded border border-border-200 px-3 py-2"
           placeholder="Сортировка"
           value={form.sort_order}
           onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
@@ -191,7 +183,7 @@ export default function TreaboCategories() {
             <tr>
               <th className="px-4 py-3">ID</th>
               <th className="px-4 py-3">Родитель</th>
-              <th className="px-4 py-3">RU / RO</th>
+              <th className="px-4 py-3">Название</th>
               <th className="px-4 py-3">Slug</th>
               <th className="px-4 py-3">Активна</th>
               <th className="px-4 py-3"></th>
@@ -204,7 +196,6 @@ export default function TreaboCategories() {
                 <td className="px-4 py-3">{row.parent_id || '-'}</td>
                 <td className="px-4 py-3">
                   {row.name_ru}
-                  <div className="text-xs text-body">{row.name_ro}</div>
                 </td>
                 <td className="px-4 py-3">{row.slug || '-'}</td>
                 <td className="px-4 py-3">{row.is_active === false ? 'Нет' : 'Да'}</td>

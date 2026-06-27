@@ -1,4 +1,5 @@
 import Layout from '@/components/layouts/admin';
+import RussiaCityInput from '@/components/proffi-admin/RussiaCityInput';
 import { formatDate, ProffiError, ProffiPageHeader } from '@/components/proffi-admin/common';
 import {
   deleteProffiAdmin,
@@ -13,9 +14,9 @@ import { FormEvent, useEffect, useState } from 'react';
 
 const emptyForm = {
   name: '',
-  phone: '+373',
+  phone: '+7',
   email: '',
-  city: 'Chișinău',
+  city: 'Москва',
   password: 'Treabo12345',
 };
 
@@ -38,9 +39,9 @@ export default function ProffiCustomers() {
     setEditingId(user.id);
     setForm({
       name: user.name || '',
-      phone: user.phone || '+373',
+      phone: user.phone || '+7',
       email: user.email || '',
-      city: user.city || 'Chișinău',
+      city: user.city || 'Москва',
       password: '',
     });
   }
@@ -99,7 +100,7 @@ export default function ProffiCustomers() {
         />
         <input
           className="rounded border border-border-200 px-3 py-2"
-          placeholder="Телефон +373"
+          placeholder="Телефон +7"
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           required
@@ -110,12 +111,7 @@ export default function ProffiCustomers() {
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
-        <input
-          className="rounded border border-border-200 px-3 py-2"
-          placeholder="Город"
-          value={form.city}
-          onChange={(e) => setForm({ ...form, city: e.target.value })}
-        />
+        <RussiaCityInput value={form.city} onChange={(city) => setForm({ ...form, city })} />
         <input
           className="rounded border border-border-200 px-3 py-2"
           placeholder={editingId ? 'Новый пароль, можно пусто' : 'Пароль'}

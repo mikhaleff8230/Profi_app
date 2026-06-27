@@ -1,4 +1,6 @@
 import Layout from '@/components/layouts/admin';
+import YandexAddressSuggest from '@/components/form/yandex-address-suggest';
+import RussiaCityInput from '@/components/proffi-admin/RussiaCityInput';
 import { formatDate, ProffiError, ProffiPageHeader, StatusBadge } from '@/components/proffi-admin/common';
 import {
   deleteProffiAdmin,
@@ -20,6 +22,8 @@ type TaskForm = {
   category: string;
   city: string;
   address: string;
+  lat: string;
+  lng: string;
   budget: string;
   response_price_mdl: string;
   deadline: string;
@@ -28,12 +32,16 @@ type TaskForm = {
   photos: string[];
 };
 
+const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
+
 const emptyTaskForm: TaskForm = {
   title: '',
   description: '',
   category: '',
-  city: 'Chișinău',
+  city: 'Москва',
   address: '',
+  lat: '',
+  lng: '',
   budget: '',
   response_price_mdl: '15',
   deadline: 'По договоренности',
@@ -94,8 +102,10 @@ export default function ProffiTasks() {
       title: task.title || '',
       description: task.description || '',
       category: task.category_id || task.category || '',
-      city: task.city || 'Chișinău',
+      city: task.city || 'Москва',
       address: task.address || '',
+      lat: task.lat != null ? String(task.lat) : '',
+      lng: task.lng != null ? String(task.lng) : '',
       budget: task.budget ? String(task.budget) : '',
       response_price_mdl: task.response_price_mdl ? String(task.response_price_mdl) : '15',
       deadline: task.deadline || 'По договоренности',
@@ -121,6 +131,12 @@ export default function ProffiTasks() {
     const selected = Array.from(files || []).slice(0, Math.max(0, 10 - form.photos.length));
     if (!selected.length) return;
 
+    const tooLarge = selected.find((file) => file.size > MAX_PHOTO_BYTES);
+    if (tooLarge) {
+      setError(`Файл «${tooLarge.name}» слишком большой. Максимум 20 МБ на фото.`);
+      return;
+    }
+
     setUploading(true);
     setError('');
 
@@ -131,7 +147,13 @@ export default function ProffiTasks() {
         photos: [...current.photos, ...uploads.map((upload) => upload.url)].slice(0, 10),
       }));
     } catch (e: any) {
-      setError(e.response?.data?.message || e.response?.data?.detail || e.message);
+      const status = e.response?.status;
+      const message = e.response?.data?.message || e.response?.data?.detail || e.message;
+      if (status === 413 || /too large|max:|размер/i.test(String(message))) {
+        setError('Файл слишком большой. Максимум 20 МБ на фото.');
+      } else {
+        setError(message);
+      }
     } finally {
       setUploading(false);
     }
@@ -153,6 +175,8 @@ export default function ProffiTasks() {
       customer_id: Number(form.customer_id),
       budget: form.budget ? Number(form.budget) : null,
       response_price_mdl: form.response_price_mdl ? Number(form.response_price_mdl) : 15,
+      lat: form.lat ? Number(form.lat) : null,
+      lng: form.lng ? Number(form.lng) : null,
       photos: form.photos,
     };
 
@@ -230,28 +254,34 @@ export default function ProffiTasks() {
           <option value="done">Готово</option>
           <option value="cancelled">Отменен</option>
         </select>
+        <RussiaCityInput value={form.city} onChange={(city) => setForm({ ...form, city })} required />
+        <div className="md:col-span-2">
+          <YandexAddressSuggest
+            value={form.address}
+            onAddressChange={(address) => setForm((current) => ({ ...current, address }))}
+            onCoordinates={(lat, lng) =>
+              setForm((current) => ({
+                ...current,
+                lat: String(lat),
+                lng: String(lng),
+              }))
+            }
+          />
+          {form.lat && form.lng ? (
+            <div className="mt-2 text-xs text-body">
+              Координаты: {form.lat}, {form.lng}
+            </div>
+          ) : null}
+        </div>
         <input
           className="rounded border border-border-200 px-3 py-2"
-          placeholder="Город"
-          value={form.city}
-          onChange={(e) => setForm({ ...form, city: e.target.value })}
-          required
-        />
-        <input
-          className="rounded border border-border-200 px-3 py-2"
-          placeholder="Адрес"
-          value={form.address}
-          onChange={(e) => setForm({ ...form, address: e.target.value })}
-        />
-        <input
-          className="rounded border border-border-200 px-3 py-2"
-          placeholder="Бюджет MDL"
+          placeholder="Бюджет, ₽"
           value={form.budget}
           onChange={(e) => setForm({ ...form, budget: e.target.value })}
         />
         <input
           className="rounded border border-border-200 px-3 py-2"
-          placeholder="Цена отклика MDL"
+          placeholder="Цена отклика, ₽"
           value={form.response_price_mdl}
           onChange={(e) => setForm({ ...form, response_price_mdl: e.target.value })}
         />
@@ -279,7 +309,7 @@ export default function ProffiTasks() {
             onChange={(event) => uploadPhotos(event.target.files)}
           />
           <div className="mt-2 text-xs text-body">
-            {uploading ? 'Загрузка фото...' : `Загружено ${form.photos.length}/10`}
+            {uploading ? 'Загрузка фото...' : `Загружено ${form.photos.length}/10. Максимум 20 МБ на файл.`}
           </div>
           {form.photos.length ? (
             <div className="mt-3 flex flex-wrap gap-3">
@@ -301,7 +331,7 @@ export default function ProffiTasks() {
         <div className="flex gap-3">
           <button
             className="flex-1 rounded bg-accent px-4 py-2 font-semibold text-light"
-            disabled={saving || !customers.length || !sortedCategories.length}
+            disabled={saving}
           >
             {saving ? 'Сохранение...' : editingId ? 'Сохранить' : 'Создать заявку'}
           </button>
@@ -354,8 +384,8 @@ export default function ProffiTasks() {
                   </td>
                   <td className="px-4 py-3">{task.category_id || task.category || '-'}</td>
                   <td className="px-4 py-3">{task.city || '-'}</td>
-                  <td className="px-4 py-3">{task.budget ? `${task.budget} MDL` : '-'}</td>
-                  <td className="px-4 py-3">{task.response_price_mdl ? `${task.response_price_mdl} MDL` : '-'}</td>
+                  <td className="px-4 py-3">{task.budget ? `${task.budget} ₽` : '-'}</td>
+                  <td className="px-4 py-3">{task.response_price_mdl ? `${task.response_price_mdl} ₽` : '-'}</td>
                   <td className="px-4 py-3 text-body">{formatDate(task.created_at)}</td>
                   <td className="px-4 py-3 text-right">
                     <button type="button" onClick={() => edit(task)} className="me-4 text-accent">
