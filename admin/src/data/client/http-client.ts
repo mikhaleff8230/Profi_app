@@ -15,6 +15,7 @@ const Axios = axios.create({
   timeout: 50000,
   headers: {
     'Content-Type': 'application/json',
+    Accept: 'application/json',
   },
 });
 // Change request data/error

@@ -41,7 +41,7 @@ const loginFormSchema = yup.object().shape({
 const LoginForm = () => {
   const { t } = useTranslation();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'phone' | 'email'>('phone');
+  const [activeTab, setActiveTab] = useState<'phone' | 'email'>('email');
   
   // Состояние для OTP
   const [phoneNumber, setPhoneNumber] = useState('');
