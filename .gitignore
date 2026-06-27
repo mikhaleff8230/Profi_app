@@ -55,3 +55,4 @@ admin/.next/cache/webpack/client-production/2.pack
 admin/node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node
 shop/.next/cache/webpack/client-development/5.pack
 shop/node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node
+shop/.next/cache/webpack/client-production/0.pack
