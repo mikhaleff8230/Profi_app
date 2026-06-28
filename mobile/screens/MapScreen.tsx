@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,17 +16,19 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
 import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
 import type { CategoryTileData } from "../components/CategoryTile";
-import { apiFetch } from "../src/api";
+import { apiFetch, fileUrl } from "../src/api";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing, typography } from "../src/theme";
 import {
-  buildYandexMapHtml,
-  formatMapOrderCount,
-  pointBalloon,
+  buildMapCenterScript,
+  buildMapUpdateScript,
+  buildYandexMapShellHtml,
   toYandexPoints,
   yandexMapsApiKey,
 } from "../src/maps/yandexMapHtml";
 import type { RootStackParamList } from "../src/navigation/types";
+import { filterTasksByBounds, parseMapBounds, type MapBounds } from "../src/utils/mapBounds";
+import { buildTaskQueryParams, type TaskFilters } from "../src/utils/taskQuery";
 
 type R = RouteProp<RootStackParamList, "Map">;
 type TaskWithGeo = TaskItem & { lat?: number | null; lng?: number | null };
@@ -34,57 +37,77 @@ export default function MapScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Map">>();
   const route = useRoute<R>();
   const filter = route.params || {};
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const insets = useSafeAreaInsets();
+  const webRef = useRef<WebView>(null);
+  const listRef = useRef<FlatList<TaskWithGeo>>(null);
   const [tasks, setTasks] = useState<TaskWithGeo[]>([]);
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
-  const [selected, setSelected] = useState<TaskWithGeo | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [bounds, setBounds] = useState<MapBounds | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [webviewReady, setWebviewReady] = useState(false);
   const apiKey = yandexMapsApiKey();
-  const sheetPad = Math.max(insets.bottom, 16);
-  const floatBottom = 220 + insets.bottom;
+  const shellHtml = useMemo(() => (apiKey ? buildYandexMapShellHtml(apiKey) : ""), [apiKey]);
 
-  const loadTasks = useCallback(
-    async (lat?: number, lng?: number) => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        if (filter.category) params.set("category", filter.category);
-        if (filter.q) params.set("q", filter.q);
-        if (filter.city) params.set("city", filter.city);
-        if (lat != null && lng != null) {
-          params.set("lat", String(lat));
-          params.set("lng", String(lng));
-          params.set("sort", "distance");
-        }
-        const qs = params.toString();
-        const [catData, taskData] = await Promise.all([
-          apiFetch("/categories", { method: "GET" }),
-          apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" }),
-        ]);
-        setCategories(Array.isArray(catData) ? catData : []);
-        setTasks(Array.isArray(taskData) ? (taskData as TaskWithGeo[]) : []);
-        setSelected(null);
-      } catch {
-        setTasks([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [filter.category, filter.city, filter.q]
+  const taskFilters = useMemo<TaskFilters>(
+    () => ({
+      category: filter.category,
+      category_id: filter.category_id,
+      q: filter.q,
+      city: filter.city,
+      budget_min: filter.budget_min,
+      budget_max: filter.budget_max,
+      lat: coords?.lat,
+      lng: coords?.lng,
+      sort: coords ? "distance" : undefined,
+    }),
+    [filter, coords]
   );
+
+  const loadTasks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const qs = buildTaskQueryParams(taskFilters);
+      const [catData, taskData] = await Promise.all([
+        apiFetch("/categories", { method: "GET" }),
+        apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" }),
+      ]);
+      setCategories(Array.isArray(catData) ? catData : []);
+      setTasks(Array.isArray(taskData) ? (taskData as TaskWithGeo[]) : []);
+      setSelectedId(null);
+    } catch (e: unknown) {
+      setTasks([]);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [taskFilters]);
 
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
 
-  const points = useMemo(
-    () => toYandexPoints(tasks).map((point) => ({ ...point, balloon: pointBalloon(point) })),
-    [tasks]
+  const mapPoints = useMemo(() => toYandexPoints(tasks, (path) => fileUrl(path)), [tasks]);
+  const visibleTasks = useMemo(() => filterTasksByBounds(tasks, bounds), [tasks, bounds]);
+  const selectedIndex = useMemo(
+    () => (selectedId ? visibleTasks.findIndex((task) => String(task.id) === selectedId) : -1),
+    [visibleTasks, selectedId]
   );
 
-  const html = useMemo(() => (apiKey ? buildYandexMapHtml(points, apiKey) : ""), [apiKey, points]);
+  useEffect(() => {
+    if (!webviewReady || !webRef.current) return;
+    webRef.current.injectJavaScript(buildMapUpdateScript(mapPoints, selectedId));
+  }, [mapPoints, selectedId, webviewReady]);
+
+  useEffect(() => {
+    if (selectedIndex >= 0) {
+      listRef.current?.scrollToIndex({ index: selectedIndex, animated: true, viewPosition: 0.5 });
+    }
+  }, [selectedIndex]);
 
   const locate = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -93,95 +116,125 @@ export default function MapScreen() {
       return;
     }
     const loc = await Location.getCurrentPositionAsync({});
-    loadTasks(loc.coords.latitude, loc.coords.longitude);
+    const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+    setCoords(next);
+    if (webRef.current) {
+      webRef.current.injectJavaScript(buildMapCenterScript(next.lat, next.lng, 12));
+    }
   };
 
   const onMessage = (event: WebViewMessageEvent) => {
     try {
       const message = JSON.parse(event.nativeEvent.data);
       if (message.type === "ready") setWebviewReady(true);
-      if (message.type === "select") {
-        const task = tasks.find((item) => String(item.id) === String(message.payload?.id));
-        if (task) setSelected(task);
+      if (message.type === "boundschange") {
+        const next = parseMapBounds(message.payload || {});
+        if (next) setBounds(next);
+      }
+      if (message.type === "select" && message.payload?.id != null) {
+        setSelectedId(String(message.payload.id));
       }
     } catch {
-      /* ignore messages from the map runtime */
+      /* ignore */
     }
+  };
+
+  const navFilters = {
+    category: filter.category,
+    category_id: filter.category_id,
+    q: filter.q,
+    city: filter.city,
+    budget_min: filter.budget_min,
+    budget_max: filter.budget_max,
   };
 
   return (
     <View style={styles.root}>
-      {apiKey ? (
-        <WebView
-          originWhitelist={["*"]}
-          source={{ html }}
-          onMessage={onMessage}
-          javaScriptEnabled
-          domStorageEnabled
-          style={StyleSheet.absoluteFill}
-        />
-      ) : (
-        <View style={styles.missingKey}>
-          <Ionicons name="map-outline" size={42} color={colors.neutral500} />
-          <Text style={styles.missingTitle}>Яндекс.Карты</Text>
-          <Text style={styles.missingText}>Добавьте EXPO_PUBLIC_YANDEX_MAPS_API_KEY в mobile/.env</Text>
-        </View>
-      )}
+      <View style={styles.mapPane}>
+        {apiKey ? (
+          <WebView
+            ref={webRef}
+            originWhitelist={["*"]}
+            source={{ html: shellHtml }}
+            onMessage={onMessage}
+            javaScriptEnabled
+            domStorageEnabled
+            style={StyleSheet.absoluteFill}
+          />
+        ) : (
+          <View style={styles.missingKey}>
+            <Ionicons name="map-outline" size={42} color={colors.neutral500} />
+            <Text style={styles.missingTitle}>{t("map_title")}</Text>
+            <Text style={styles.missingText}>{t("map_key_missing")}</Text>
+          </View>
+        )}
 
-      <SafeAreaView style={styles.overlay} edges={["top"]}>
-        <View style={styles.toggleRow}>
-          <View style={styles.segment}>
-            <TouchableOpacity
-              style={styles.segmentBtn}
-              onPress={() => navigation.navigate("TasksList", { category: filter.category, q: filter.q, city: filter.city })}
-            >
-              <Text style={styles.segmentInactive}>{t("list_view")}</Text>
-            </TouchableOpacity>
-            <View style={styles.segmentActive}>
-              <Text style={styles.segmentActiveText}>{t("map_view")}</Text>
+        <SafeAreaView style={styles.overlay} edges={["top"]} pointerEvents="box-none">
+          <View style={styles.toggleRow}>
+            <View style={styles.segment}>
+              <TouchableOpacity style={styles.segmentBtn} onPress={() => navigation.navigate("TasksList", navFilters)}>
+                <Text style={styles.segmentInactive}>{t("list_view")}</Text>
+              </TouchableOpacity>
+              <View style={styles.segmentActive}>
+                <Text style={styles.segmentActiveText}>{t("map_view")}</Text>
+              </View>
             </View>
           </View>
+        </SafeAreaView>
+
+        <TouchableOpacity style={[styles.locateBtn, { top: 72 + insets.top }]} onPress={locate}>
+          <Ionicons name="navigate" size={22} color={colors.black} />
+        </TouchableOpacity>
+
+        {(loading || (apiKey && !webviewReady)) && (
+          <View style={styles.loading}>
+            <ActivityIndicator color={colors.black} />
+          </View>
+        )}
+      </View>
+
+      <View style={[styles.listPane, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={styles.listHead}>
+          <Ionicons name="list-outline" size={18} color={colors.black} />
+          <Text style={styles.listHeadTitle}>{t("tasks_in_view")}</Text>
+          <Text style={styles.listHeadCount}>
+            {visibleTasks.length}
+            {mapPoints.length ? ` / ${mapPoints.length}` : ""}
+          </Text>
         </View>
-      </SafeAreaView>
 
-      <TouchableOpacity
-        style={[styles.countPill, { bottom: floatBottom }]}
-        onPress={() => navigation.navigate("TasksList", { category: filter.category, q: filter.q, city: filter.city })}
-      >
-        <Ionicons name="list-outline" size={18} color={colors.black} />
-        <Text style={styles.countText}>{formatMapOrderCount(points.length, lang)}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.locateBtn, { bottom: floatBottom }]} onPress={locate}>
-        <Ionicons name="navigate" size={22} color={colors.black} />
-      </TouchableOpacity>
-
-      {(loading || (apiKey && !webviewReady && points.length > 0)) && (
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.black} />
-        </View>
-      )}
-
-      <View style={[styles.sheet, { paddingBottom: sheetPad }]}>
-        <View style={styles.handle} />
-        {selected ? (
-          <View>
-            <TouchableOpacity onPress={() => setSelected(null)}>
-              <Text style={styles.sheetClose}>×</Text>
+        {error ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={loadTasks}>
+              <Text style={styles.retryText}>{t("retry")}</Text>
             </TouchableOpacity>
-            <TaskCardRow
-              task={selected}
-              category={categories.find((c) => String(c.id) === String(selected.category))}
-              onPress={() => {
-                setSelected(null);
-                navigation.navigate("TaskDetail", { taskId: String(selected.id) });
-              }}
-            />
+          </View>
+        ) : visibleTasks.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>
+              {mapPoints.length ? t("no_tasks_in_bounds") : t("no_tasks_with_coords")}
+            </Text>
           </View>
         ) : (
-          <Text style={styles.sheetHint}>
-            {points.length ? t("map_open_tasks") : "Заказов с координатами пока нет"}
-          </Text>
+          <FlatList
+            ref={listRef}
+            data={visibleTasks}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <View style={selectedId === String(item.id) ? styles.cardSelected : undefined}>
+                <TaskCardRow
+                  task={item}
+                  category={categories.find(
+                    (c) => String(c.id) === String(item.category_id || item.category)
+                  )}
+                  onPress={() => navigation.navigate("TaskDetail", { taskId: String(item.id) })}
+                />
+              </View>
+            )}
+            contentContainerStyle={styles.listContent}
+            onScrollToIndexFailed={() => undefined}
+          />
         )}
       </View>
     </View>
@@ -190,7 +243,18 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
-  overlay: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, pointerEvents: "box-none" },
+  mapPane: { flex: 0.58, backgroundColor: colors.lavender50 },
+  listPane: {
+    flex: 0.42,
+    backgroundColor: colors.lavender50,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  overlay: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 2 },
   toggleRow: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
   segment: {
     flexDirection: "row",
@@ -210,29 +274,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: radii.full,
     backgroundColor: colors.white,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
     elevation: 2,
   },
   segmentActiveText: { fontSize: 14, fontWeight: "700", color: colors.black },
-  countPill: {
-    position: "absolute",
-    left: spacing.xl,
-    zIndex: 3,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: colors.white,
-    paddingHorizontal: 16,
-    height: 48,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  countText: { fontSize: 14, fontWeight: "700" },
   locateBtn: {
     position: "absolute",
     right: spacing.xl,
@@ -260,28 +304,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.xxl,
-    backgroundColor: colors.lavender50,
     gap: spacing.sm,
   },
   missingTitle: { ...typography.headline },
   missingText: { ...typography.small, color: colors.neutral500, textAlign: "center" },
-  sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    maxHeight: 260,
-    backgroundColor: colors.lavender50,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 12,
-    zIndex: 4,
+  listHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 14,
+    paddingBottom: 8,
   },
-  handle: { width: 48, height: 4, backgroundColor: colors.neutral300, borderRadius: 2, alignSelf: "center", marginBottom: 12 },
-  sheetClose: { fontSize: 18, color: colors.neutral500, marginBottom: 8, textAlign: "right" },
-  sheetHint: { ...typography.body, color: colors.neutral500, textAlign: "center", paddingVertical: 16 },
+  listHeadTitle: { fontSize: 14, fontWeight: "700", flex: 1 },
+  listHeadCount: { fontSize: 13, color: colors.neutral500, fontWeight: "600" },
+  listContent: { paddingHorizontal: spacing.xl, paddingBottom: 12, gap: 10 },
+  cardSelected: { borderRadius: 24, borderWidth: 2, borderColor: "#D9F36B" },
+  emptyBox: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  emptyText: { ...typography.body, color: colors.neutral500, textAlign: "center" },
+  errorText: { ...typography.body, color: colors.neutral600, textAlign: "center", marginBottom: 8 },
+  retryText: { color: colors.black, fontWeight: "700" },
 });

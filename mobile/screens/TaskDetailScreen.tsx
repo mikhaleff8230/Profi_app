@@ -17,7 +17,6 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../src/api";
-import { fileUrl } from "../src/api";
 import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { useChatStore } from "../src/store/chatStore";
@@ -30,38 +29,21 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { CardLight } from "../components/CardLight";
 import type { RootStackParamList } from "../src/navigation/types";
 import type { CategoryTileData } from "../components/CategoryTile";
+import type { Application, ApplicationPreview, Task } from "../src/types/proffi";
+import { resolveTaskPhotos } from "../src/utils/photos";
+import { formatResponseFeeMdl } from "../src/utils/currency";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type R = RouteProp<RootStackParamList, "TaskDetail">;
 
-type TaskFull = {
-  id: string;
-  title: string;
-  description: string;
-  category: string | number;
-  city: string;
-  address?: string | null;
-  budget?: number | null;
-  deadline?: string | null;
-  status: string;
-  customer_id: string;
-  customer_name?: string;
-  created_at: string;
-  photos?: string[];
-  lat?: number | null;
-  lng?: number | null;
-  distance_km?: number | null;
-};
+type AppRow = Application;
 
-type AppRow = {
-  id: string;
-  specialist_id: string;
-  specialist_name: string;
-  specialist_city?: string | null;
-  message: string;
-  price?: number | null;
-  status: string;
+type SpecInfo = {
+  has_applied?: boolean;
+  application_status?: string | null;
   chat_id?: string | null;
+  rank?: number;
+  customer?: { id: string; name: string; last_seen?: string };
 };
 
 function yandexStaticMapUrl(lat: number, lng: number): string {
@@ -84,18 +66,12 @@ export default function TaskDetailScreen() {
   const { taskId } = route.params;
   const { user } = useAuth();
   const { t, lang } = useLang();
-  const [task, setTask] = useState<TaskFull | null>(null);
+  const [task, setTask] = useState<Task | null>(null);
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
   const [apps, setApps] = useState<AppRow[]>([]);
-  const [specInfo, setSpecInfo] = useState<{
-    has_applied?: boolean;
-    application_status?: string | null;
-    chat_id?: string | null;
-    rank?: number;
-    customer?: { id: string; name: string; last_seen?: string };
-  } | null>(null);
+  const [specInfo, setSpecInfo] = useState<SpecInfo | null>(null);
+  const [applyPreview, setApplyPreview] = useState<ApplicationPreview | null>(null);
   const [loading, setLoading] = useState(true);
-  const [demo, setDemo] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showApply, setShowApply] = useState(false);
   const [applyMsg, setApplyMsg] = useState("");
@@ -107,8 +83,7 @@ export default function TaskDetailScreen() {
     setLoading(true);
     try {
       const data = await apiFetch(`/tasks/${taskId}`, { method: "GET" });
-      setTask(data as TaskFull);
-      setDemo(false);
+      setTask(data as Task);
       setLoadError(null);
       if (user?.role === "customer" && String(data.customer_id) === String(user.id)) {
         try {
@@ -123,12 +98,20 @@ export default function TaskDetailScreen() {
           const si = await apiFetch(`/tasks/${taskId}/specialist-info`, { method: "GET" });
           setSpecInfo(si);
         } catch {
-          setSpecInfo({ has_applied: false, rank: 1, customer: { id: "0", name: data.customer_name || "Клиент" } });
+          setSpecInfo(null);
         }
+        try {
+          const preview = await apiFetch(`/tasks/${taskId}/applications/preview`, { method: "GET" });
+          setApplyPreview(preview as ApplicationPreview);
+        } catch {
+          setApplyPreview(null);
+        }
+      } else {
+        setSpecInfo(null);
+        setApplyPreview(null);
       }
     } catch (e: unknown) {
       setTask(null);
-      setDemo(false);
       setLoadError(e instanceof Error ? e.message : String(e));
       setApps([]);
       setSpecInfo(null);
@@ -148,7 +131,7 @@ export default function TaskDetailScreen() {
     load();
   }, [load]);
 
-  const cat = task ? categories.find((c) => String(c.id) === String(task.category)) : null;
+  const cat = task ? categories.find((c) => String(c.id) === String(task.category_id || task.category)) : null;
   const isOwner = user?.role === "customer" && task && String(task.customer_id) === String(user.id);
   const isSpecialist = user?.role === "specialist";
   const hasApplied = specInfo?.has_applied;
@@ -160,18 +143,22 @@ export default function TaskDetailScreen() {
     navigation.navigate("ChatDetail", { chatId });
   };
 
+  const openApplyForm = async () => {
+    if (!applyPreview) {
+      try {
+        const preview = await apiFetch(`/tasks/${taskId}/applications/preview`, { method: "GET" });
+        setApplyPreview(preview as ApplicationPreview);
+      } catch {
+        /* preview optional */
+      }
+    }
+    setShowApply(true);
+  };
+
   const submitApplication = async () => {
     if (!applyMsg.trim()) return;
     setBusy(true);
     try {
-      if (demo) {
-        Alert.alert(t("success"), t("demo_apply_saved"));
-        setShowApply(false);
-        setApplyMsg("");
-        setApplyPrice("");
-        setSpecInfo((s) => ({ ...s, has_applied: true }));
-        return;
-      }
       const response = await apiFetch(`/tasks/${taskId}/applications`, {
         method: "POST",
         body: JSON.stringify({
@@ -199,10 +186,6 @@ export default function TaskDetailScreen() {
 
   const acceptApp = async (appId: string) => {
     try {
-      if (demo) {
-        Alert.alert(t("success"), t("demo_action"));
-        return;
-      }
       const response = await apiFetch(`/applications/${appId}/accept`, { method: "POST" });
       const chatId = response?.chat_id ? String(response.chat_id) : "";
       await loadChats();
@@ -225,10 +208,6 @@ export default function TaskDetailScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            if (demo) {
-              navigation.goBack();
-              return;
-            }
             await apiFetch(`/tasks/${taskId}`, { method: "DELETE" });
             navigation.goBack();
           } catch (e: unknown) {
@@ -251,7 +230,7 @@ export default function TaskDetailScreen() {
   if (!task) {
     return (
       <SafeAreaView style={styles.center} edges={["top", "bottom", "left", "right"]}>
-        <Text style={styles.errorTitle}>Ошибка</Text>
+        <Text style={styles.errorTitle}>{t("error_title")}</Text>
         <Text style={styles.errorText}>{loadError || t("no_tasks")}</Text>
         <PrimaryButton title={t("cancel")} fullWidth={false} style={styles.errorBtn} onPress={() => navigation.goBack()} />
       </SafeAreaView>
@@ -262,7 +241,7 @@ export default function TaskDetailScreen() {
   const statusVariant =
     task.status === "open" ? "default" : task.status === "in_progress" ? "warning" : task.status === "completed" ? "success" : "muted";
   const showFooter = isSpecialist && (task.status === "open" || !!chatId);
-  const photos = (task.photos || []).map((path) => fileUrl(path) || path).filter(Boolean);
+  const photos = resolveTaskPhotos(task.photos);
   const hasCoords = task.lat != null && task.lng != null;
 
   return (
@@ -282,12 +261,6 @@ export default function TaskDetailScreen() {
           )
         }
       />
-      {demo && (
-        <View style={styles.demoBanner}>
-          <Text style={styles.demoText}>{t("demo_data_banner")}</Text>
-        </View>
-      )}
-
       <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.scroll}>
         <Text style={styles.h1}>{task.title}</Text>
 
@@ -378,7 +351,7 @@ export default function TaskDetailScreen() {
           <CardLight style={styles.mapCard}>
             <View style={styles.mapHead}>
               <Ionicons name="home-outline" size={18} color={colors.black} />
-              <Text style={styles.h2Small}>Адрес</Text>
+              <Text style={styles.h2Small}>{t("address_label")}</Text>
             </View>
             <Text style={styles.addressText}>
               {[task.city, task.address].filter(Boolean).join(", ")}
@@ -392,7 +365,7 @@ export default function TaskDetailScreen() {
             ) : (
               <View style={styles.mapPlaceholder}>
                 <Ionicons name="map-outline" size={28} color={colors.neutral400} />
-                <Text style={styles.mapPlaceholderText}>Координаты заказа пока не указаны</Text>
+                <Text style={styles.mapPlaceholderText}>{t("no_task_coords")}</Text>
               </View>
             )}
           </CardLight>
@@ -429,7 +402,7 @@ export default function TaskDetailScreen() {
                   )}
                   {a.status === "accepted" && a.chat_id && (
                     <PrimaryButton
-                      title="Написать в чат"
+                      title={t("open_chat")}
                       fullWidth={false}
                       style={styles.acceptBtn}
                       onPress={async () => {
@@ -450,6 +423,19 @@ export default function TaskDetailScreen() {
         {isSpecialist && showApply && (
           <View style={styles.applyBox}>
             <Text style={styles.h2}>{t("fits_question")}</Text>
+            {applyPreview && !applyPreview.has_applied && (
+              <Text style={styles.previewHint}>
+                {applyPreview.is_free
+                  ? t("response_preview_free").replace(
+                      "{n}",
+                      String(applyPreview.free_remaining_before ?? 0)
+                    )
+                  : t("response_preview_paid").replace(
+                      "{fee}",
+                      formatResponseFeeMdl(applyPreview.response_fee_mdl)
+                    )}
+              </Text>
+            )}
             <TextInput
               style={styles.textarea}
               placeholder={t("message_placeholder")}
@@ -473,14 +459,14 @@ export default function TaskDetailScreen() {
       {isSpecialist && (task.status === "open" || !!chatId) && (
         <BottomActionBar>
           {!!chatId && !showApply && (
-            <PrimaryButton title="Написать в чат" onPress={openExistingChat} />
+            <PrimaryButton title={t("open_chat")} onPress={openExistingChat} />
           )}
           {!hasApplied && !showApply && (
-            <PrimaryButton title={t("message_client")} onPress={() => setShowApply(true)} />
+            <PrimaryButton title={t("message_client")} onPress={openApplyForm} />
           )}
           {hasApplied && !chatId && !showApply && (
             <PrimaryButton
-              title={specInfo?.application_status === "accepted" ? "Чат создается" : "Отклик отправлен"}
+              title={specInfo?.application_status === "accepted" ? t("chat_creating") : t("application_sent")}
               onPress={() => {}}
               disabled
             />
@@ -511,8 +497,6 @@ const styles = StyleSheet.create({
   errorBtn: { paddingHorizontal: 24 },
   scrollFlex: { flex: 1 },
   scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
-  demoBanner: { paddingVertical: 8, backgroundColor: colors.lavender100 },
-  demoText: { textAlign: "center", fontSize: 12, color: colors.neutral600 },
   h1: { ...typography.title, fontSize: 26, marginBottom: 16, lineHeight: 32 },
   h2: { ...typography.headline, fontSize: 18, marginBottom: 8 },
   h2Small: { ...typography.headline, fontSize: 16 },
@@ -590,6 +574,7 @@ const styles = StyleSheet.create({
   price: { fontWeight: "800", fontSize: 16 },
   acceptBtn: { minWidth: 120, paddingHorizontal: 16 },
   applyBox: { marginTop: 12, gap: 8 },
+  previewHint: { fontSize: 13, color: colors.neutral600, marginBottom: 4 },
   textarea: {
     minHeight: 100,
     backgroundColor: colors.lavender50,

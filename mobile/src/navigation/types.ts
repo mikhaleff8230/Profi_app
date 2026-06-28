@@ -1,7 +1,25 @@
 export type RootStackParamList = {
   MainTabs: undefined;
-  Map: { category?: string; q?: string; city?: string } | undefined;
-  TasksList: { category?: string; q?: string; city?: string } | undefined;
+  Map:
+    | {
+        category?: string;
+        category_id?: string;
+        q?: string;
+        city?: string;
+        budget_min?: string;
+        budget_max?: string;
+      }
+    | undefined;
+  TasksList:
+    | {
+        category?: string;
+        category_id?: string;
+        q?: string;
+        city?: string;
+        budget_min?: string;
+        budget_max?: string;
+      }
+    | undefined;
   TaskDetail: { taskId: string };
   CreateTask: undefined;
   ChatDetail: { chatId: string };

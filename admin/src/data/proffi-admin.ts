@@ -11,6 +11,22 @@ const proffiAdminApi = axios.create({
   timeout: 30000,
 });
 
+function proffiApiPath(path: string): string {
+  if (path.startsWith('/api/proffi/')) {
+    return path;
+  }
+
+  if (path.startsWith('/api/admin/')) {
+    return path.replace(/^\/api\/admin\//, '/api/proffi/admin/');
+  }
+
+  if (path === '/api/uploads') {
+    return '/api/proffi/uploads';
+  }
+
+  return path;
+}
+
 proffiAdminApi.interceptors.request.use((config) => {
   const { token: bearerToken } = getAuthCredentials();
   const localToken =
@@ -51,6 +67,9 @@ export type ProffiUser = {
   services?: string[];
   avatar?: string | null;
   portfolio?: string[];
+  balance?: number;
+  total_deposited?: number;
+  total_spent?: number;
   created_at?: string | null;
 };
 
@@ -193,22 +212,36 @@ export type AiChatKnowledgeInput = {
 };
 
 export async function getProffiAdmin<T>(path: string): Promise<T> {
-  const response = await proffiAdminApi.get<T>(path);
+  const response = await proffiAdminApi.get<T>(proffiApiPath(path));
   return response.data;
 }
 
 export async function postProffiAdmin<T>(path: string, data: unknown): Promise<T> {
-  const response = await proffiAdminApi.post<T>(path, data);
+  const response = await proffiAdminApi.post<T>(proffiApiPath(path), data);
   return response.data;
 }
 
+export async function virtualDepositSpecialistBalance(specialistId: string, amount: number) {
+  return postProffiAdmin<{
+    success: boolean;
+    message: string;
+    data?: {
+      seller_id: string;
+      amount: number;
+      old_balance: number;
+      new_balance: number;
+      deposit_id: number;
+    };
+  }>(`/api/admin/specialists/${encodeURIComponent(specialistId)}/balance/virtual-deposit`, { amount });
+}
+
 export async function putProffiAdmin<T>(path: string, data: unknown): Promise<T> {
-  const response = await proffiAdminApi.put<T>(path, data);
+  const response = await proffiAdminApi.put<T>(proffiApiPath(path), data);
   return response.data;
 }
 
 export async function deleteProffiAdmin<T>(path: string): Promise<T> {
-  const response = await proffiAdminApi.delete<T>(path);
+  const response = await proffiAdminApi.delete<T>(proffiApiPath(path));
   return response.data;
 }
 
@@ -217,7 +250,7 @@ export async function uploadProffiAdminFile(file: File, folder = 'admin'): Promi
   formData.append('file', file);
   formData.append('folder', folder);
 
-  const response = await proffiAdminApi.post<ProffiUpload>('/api/uploads', formData, {
+  const response = await proffiAdminApi.post<ProffiUpload>(proffiApiPath('/api/uploads'), formData, {
     headers: {
       Accept: 'application/json',
     },

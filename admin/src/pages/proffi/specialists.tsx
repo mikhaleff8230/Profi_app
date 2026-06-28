@@ -8,6 +8,7 @@ import {
   ProffiUser,
   putProffiAdmin,
   uploadProffiAdminFile,
+  virtualDepositSpecialistBalance,
 } from '@/data/proffi-admin';
 import { adminOnly } from '@/utils/auth-utils';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
@@ -42,6 +43,9 @@ export default function ProffiSpecialists() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [depositModal, setDepositModal] = useState<{ id: string; name: string } | null>(null);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositSaving, setDepositSaving] = useState(false);
 
   function load() {
     getProffiAdmin<ProffiUser[]>('/api/admin/specialists')
@@ -151,6 +155,27 @@ export default function ProffiSpecialists() {
     if (editingId === id) reset();
     load();
   }
+
+  async function submitVirtualDeposit() {
+    if (!depositModal) return;
+    const amount = parseFloat(depositAmount);
+    if (!amount || amount <= 0) return;
+
+    setDepositSaving(true);
+    setError('');
+    try {
+      await virtualDepositSpecialistBalance(depositModal.id, amount);
+      setDepositModal(null);
+      setDepositAmount('');
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.message || e.response?.data?.detail || e.message);
+    } finally {
+      setDepositSaving(false);
+    }
+  }
+
+  const money = new Intl.NumberFormat('ru-RU');
 
   return (
     <>
@@ -264,6 +289,7 @@ export default function ProffiSpecialists() {
                 <th className="px-4 py-3">Телефон</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Город</th>
+                <th className="px-4 py-3">Баланс</th>
                 <th className="px-4 py-3">Услуги</th>
                 <th className="px-4 py-3">Создан</th>
                 <th className="px-4 py-3"></th>
@@ -293,9 +319,22 @@ export default function ProffiSpecialists() {
                   <td className="px-4 py-3">{user.phone || '-'}</td>
                   <td className="px-4 py-3">{user.email || '-'}</td>
                   <td className="px-4 py-3">{user.city || '-'}</td>
+                  <td className="px-4 py-3 font-semibold">
+                    {money.format(Number(user.balance || 0))} ₽
+                  </td>
                   <td className="px-4 py-3">{user.services?.length ? user.services.join(', ') : '-'}</td>
                   <td className="px-4 py-3 text-body">{formatDate(user.created_at)}</td>
                   <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDepositModal({ id: user.id, name: user.name || 'Мастер' });
+                        setDepositAmount('');
+                      }}
+                      className="me-4 text-emerald-600"
+                    >
+                      Пополнить
+                    </button>
                     <button type="button" onClick={() => edit(user)} className="me-4 text-accent">
                       Редактировать
                     </button>
@@ -307,7 +346,7 @@ export default function ProffiSpecialists() {
               ))}
               {!rows.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-body" colSpan={8}>
+                  <td className="px-4 py-8 text-center text-body" colSpan={9}>
                     Данных пока нет
                   </td>
                 </tr>
@@ -316,6 +355,52 @@ export default function ProffiSpecialists() {
           </table>
         </div>
       </div>
+
+      {depositModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setDepositModal(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-lg bg-light p-6 shadow-lg"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="mb-2 text-lg font-semibold text-heading">Виртуальное пополнение баланса</h3>
+            <p className="mb-4 text-sm text-body">
+              Мастер: <span className="font-medium">{depositModal.name}</span>
+            </p>
+            <label className="mb-2 block text-sm font-medium text-body">Сумма (₽)</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={depositAmount}
+              onChange={(event) => setDepositAmount(event.target.value)}
+              className="mb-4 w-full rounded border border-border-200 px-3 py-2"
+              placeholder="Введите сумму"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDepositModal(null)}
+                className="rounded bg-gray-100 px-4 py-2 font-semibold"
+                disabled={depositSaving}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={submitVirtualDeposit}
+                className="rounded bg-accent px-4 py-2 font-semibold text-light"
+                disabled={depositSaving || !depositAmount || parseFloat(depositAmount) <= 0}
+              >
+                {depositSaving ? 'Сохранение...' : 'Пополнить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

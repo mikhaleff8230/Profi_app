@@ -7,21 +7,29 @@ import { Platform } from "react-native";
  */
 export const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/+$/, "");
 
-/** Публичный URL файла с бэкенда (как на веб: /api/files/...) */
+export type ApiNamespace = "proffi" | "root";
+
+function resolveApiUrl(path: string, namespace: ApiNamespace = "proffi"): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (namespace === "root") return `${API_BASE}/api${normalized}`;
+  return `${API_BASE}/api/proffi${normalized}`;
+}
+
+/** Публичный URL файла с бэкенда Proffi */
 export function fileUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith("http") || path.startsWith("blob:")) return path;
-  return `${API_BASE}/api/files/${path}`;
+  return `${API_BASE}/api/proffi/files/${path}`;
 }
 
-/** Multipart загрузка (аватар и т.п.) */
+/** Multipart загрузка (аватар, фото задания и т.п.) */
 export async function apiUploadFile(uri: string, mime = "image/jpeg", filename = "upload.jpg"): Promise<{ path: string }> {
   const token = await getToken();
   const form = new FormData();
   form.append("file", { uri, name: filename, type: mime } as any);
   const headers: HeadersInit = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/api/uploads`, { method: "POST", headers, body: form });
+  const res = await fetch(resolveApiUrl("/uploads"), { method: "POST", headers, body: form });
   const text = await res.text();
   let data: any = null;
   try {
@@ -67,9 +75,9 @@ export async function setToken(token: string | null): Promise<void> {
 
 export async function apiFetch(
   path: string,
-  options: RequestInit & { auth?: boolean } = {}
+  options: RequestInit & { auth?: boolean; namespace?: ApiNamespace } = {}
 ): Promise<any> {
-  const { auth = true, ...fetchOpts } = options;
+  const { auth = true, namespace = "proffi", ...fetchOpts } = options;
   const headers = new Headers(fetchOpts.headers);
   if (fetchOpts.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -78,7 +86,7 @@ export async function apiFetch(
     const token = await getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
-  const res = await fetch(`${API_BASE}/api${path}`, { ...fetchOpts, headers });
+  const res = await fetch(resolveApiUrl(path, namespace), { ...fetchOpts, headers });
   const text = await res.text();
   let data: any = null;
   try {

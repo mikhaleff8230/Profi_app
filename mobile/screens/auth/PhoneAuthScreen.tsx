@@ -103,7 +103,7 @@ export default function PhoneAuthScreen() {
       role,
       return_url: oauthReturnUrl(),
     });
-    const url = `${API_BASE}/api/auth/oauth/${provider}/redirect?${params.toString()}`;
+    const url = `${API_BASE}/api/proffi/auth/oauth/${provider}/redirect?${params.toString()}`;
     try {
       await Linking.openURL(url);
     } catch (e: unknown) {
