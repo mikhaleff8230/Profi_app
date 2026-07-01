@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Linking, Platform } from "react-native";
 import { apiFetch, getToken, setToken } from "../api";
+import { resetEcho } from "../services/realtime";
 
 export type UserRole = "customer" | "specialist";
 
@@ -118,11 +119,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [consumeOAuthUrl]);
 
   const signIn = useCallback(async (token: string, u: User) => {
+    resetEcho();
     await setToken(token);
     setUser(u);
   }, []);
 
   const logout = useCallback(async () => {
+    resetEcho();
     await setToken(null);
     setUser(null);
   }, []);

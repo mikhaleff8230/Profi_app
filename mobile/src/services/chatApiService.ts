@@ -9,7 +9,12 @@ type ApiChat = {
   specialist_name?: string;
   last_message?: string | null;
   last_message_at?: string | null;
+  unread_count?: number;
+  is_typing?: boolean;
+  other_is_online?: boolean;
+  other_last_seen_at?: string | null;
   created_at: string;
+  updated_at?: string;
 };
 
 type ApiMessage = {
@@ -20,6 +25,8 @@ type ApiMessage = {
   text: string;
   type?: string;
   created_at: string;
+  delivered_at?: string | null;
+  read_at?: string | null;
 };
 
 function mapChat(chat: ApiChat): Chat {
@@ -27,7 +34,11 @@ function mapChat(chat: ApiChat): Chat {
     id: chat.id,
     title: chat.task_title || chat.specialist_name || chat.customer_name || "Чат",
     last_message: chat.last_message ?? null,
-    updated_at: chat.last_message_at || chat.created_at,
+    updated_at: chat.last_message_at || chat.updated_at || chat.created_at,
+    unread_count: Number(chat.unread_count || 0),
+    is_typing: Boolean(chat.is_typing),
+    other_is_online: Boolean(chat.other_is_online),
+    other_last_seen_at: chat.other_last_seen_at ?? null,
   };
 }
 
@@ -39,6 +50,8 @@ function mapMessage(message: ApiMessage): Message {
     text: message.text,
     type: message.type === "image" || message.type === "pin" ? message.type : "text",
     created_at: message.created_at,
+    delivered_at: message.delivered_at ?? null,
+    read_at: message.read_at ?? null,
   };
 }
 
@@ -64,6 +77,21 @@ export class ApiChatService implements IChatService {
       body: JSON.stringify({ text: payload.text ?? "" }),
     });
     return mapMessage(data);
+  }
+
+  async markAsRead(chatId: ChatId): Promise<void> {
+    await apiFetch(`/chats/${chatId}/read`, { method: "POST" });
+  }
+
+  async sendTyping(chatId: ChatId, isTyping: boolean): Promise<void> {
+    await apiFetch(`/chats/${chatId}/typing`, {
+      method: "POST",
+      body: JSON.stringify({ is_typing: isTyping }),
+    });
+  }
+
+  async heartbeat(): Promise<void> {
+    await apiFetch("/presence/heartbeat", { method: "POST" });
   }
 }
 

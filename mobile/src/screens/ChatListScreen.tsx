@@ -45,10 +45,12 @@ function ChatRow({
   onPress: () => void;
 }) {
   const letter = chat.title.charAt(0).toUpperCase();
+  const unread = Number(chat.unread_count || 0);
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.85}>
       <View style={[styles.avatar, { backgroundColor: avatarColor(chat.title) }]}>
         <Text style={styles.avatarLetter}>{letter}</Text>
+        {chat.other_is_online ? <View style={styles.onlineDot} /> : null}
       </View>
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
@@ -57,10 +59,15 @@ function ChatRow({
           </Text>
           <Text style={styles.time}>{timeAgo(chat.updated_at, lang)}</Text>
         </View>
-        <Text style={styles.preview} numberOfLines={2}>
-          {chat.last_message || "-"}
+        <Text style={[styles.preview, chat.is_typing && styles.typingPreview]} numberOfLines={2}>
+          {chat.is_typing ? "печатает..." : chat.last_message || "-"}
         </Text>
       </View>
+      {unread > 0 ? (
+        <View style={styles.unreadBadge}>
+          <Text style={styles.unreadText}>{unread > 99 ? "99+" : unread}</Text>
+        </View>
+      ) : null}
       <Ionicons name="chevron-forward" size={18} color={colors.neutral300} />
     </TouchableOpacity>
   );
@@ -72,11 +79,13 @@ export default function ChatListScreen() {
   const chats = useChatStore((s) => s.chats);
   const loadingChats = useChatStore((s) => s.loadingChats);
   const loadChats = useChatStore((s) => s.loadChats);
+  const heartbeat = useChatStore((s) => s.heartbeat);
 
   useFocusEffect(
     useCallback(() => {
       loadChats();
-    }, [loadChats])
+      heartbeat().catch(() => undefined);
+    }, [heartbeat, loadChats])
   );
 
   return (
@@ -141,6 +150,18 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  onlineDot: {
+    position: "absolute",
+    right: 1,
+    bottom: 1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: "#10b981",
+    borderWidth: 2,
+    borderColor: colors.white,
   },
   avatarLetter: { fontSize: 20, fontWeight: "800", color: colors.white },
   rowBody: { flex: 1, minWidth: 0 },
@@ -148,6 +169,17 @@ const styles = StyleSheet.create({
   name: { flex: 1, fontSize: 16, fontWeight: "700", color: colors.black },
   time: { fontSize: 12, color: colors.neutral400 },
   preview: { fontSize: 14, color: colors.neutral500, lineHeight: 19 },
+  typingPreview: { color: "#0ea5e9", fontWeight: "700" },
+  unreadBadge: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: "#f43f5e",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unreadText: { color: colors.white, fontSize: 11, fontWeight: "800" },
   emptyWrap: { alignItems: "center", paddingHorizontal: spacing.xxl, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: "600", color: colors.neutral600, marginTop: 8 },
   emptyHint: { fontSize: 13, color: colors.neutral400, textAlign: "center" },

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api } from "./api";
+import { resetEcho } from "./realtime";
 
 const AuthContext = createContext(null);
 
@@ -66,6 +67,7 @@ export function AuthProvider({ children }) {
   }, [fetchMe]);
 
   const login = async (phone, password) => {
+    resetEcho();
     const { data } = await api.post("/auth/login", { phone, password });
     localStorage.setItem("token", data.token);
     setUser(withDevMock(data.user));
@@ -73,6 +75,7 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (payload) => {
+    resetEcho();
     const { data } = await api.post("/auth/register-phone", payload);
     localStorage.setItem("token", data.token);
     setUser(withDevMock(data.user));
@@ -80,6 +83,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    resetEcho();
     localStorage.removeItem("token");
     setUser(null);
     if (AUTOLOGIN_ACTIVE) fetchMe();

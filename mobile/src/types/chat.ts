@@ -7,6 +7,10 @@ export type Chat = {
   title: string;
   last_message: string | null;
   updated_at: string;
+  unread_count?: number;
+  is_typing?: boolean;
+  other_is_online?: boolean;
+  other_last_seen_at?: string | null;
 };
 
 export type Message = {
@@ -16,6 +20,8 @@ export type Message = {
   text: string;
   type: MessageType;
   created_at: string;
+  delivered_at?: string | null;
+  read_at?: string | null;
 };
 
 export type SendMessagePayload = {

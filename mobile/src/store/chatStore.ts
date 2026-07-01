@@ -11,6 +11,12 @@ type ChatState = {
   loadChats: () => Promise<void>;
   loadMessages: (chatId: ChatId) => Promise<void>;
   sendMessage: (chatId: ChatId, text: string) => Promise<void>;
+  markAsRead: (chatId: ChatId) => Promise<void>;
+  sendTyping: (chatId: ChatId, isTyping: boolean) => Promise<void>;
+  heartbeat: () => Promise<void>;
+  receiveRealtimeMessage: (message: Message) => void;
+  markRealtimeRead: (chatId: ChatId, readerId: ChatId, readAt: string, currentUserId?: ChatId | null) => void;
+  updateChatRealtime: (chatId: ChatId, patch: Partial<Chat>) => void;
 };
 
 function sortChats(chats: Chat[]): Chat[] {
@@ -83,5 +89,60 @@ export const useChatStore = create<ChatState>((set) => ({
       set({ error: e instanceof Error ? e.message : "Failed to send message" });
       throw e;
     }
+  },
+
+  markAsRead: async (chatId: ChatId) => {
+    await chatService.markAsRead(chatId);
+    const key = String(chatId);
+    set((s) => ({
+      chats: s.chats.map((c) => String(c.id) === key ? { ...c, unread_count: 0 } : c),
+    }));
+  },
+
+  sendTyping: async (chatId: ChatId, isTyping: boolean) => {
+    await chatService.sendTyping(chatId, isTyping);
+  },
+
+  heartbeat: async () => {
+    await chatService.heartbeat();
+  },
+
+  receiveRealtimeMessage: (message: Message) => {
+    const key = String(message.chat_id);
+    set((s) => {
+      const prev = s.messages[key] ?? [];
+      const exists = prev.some((m) => String(m.id) === String(message.id));
+      const messages = exists ? prev : [...prev, message];
+      const chats = sortChats(
+        s.chats.map((c) => String(c.id) === key
+          ? { ...c, last_message: message.text, updated_at: message.created_at, is_typing: false }
+          : c)
+      );
+      return { messages: { ...s.messages, [key]: messages }, chats };
+    });
+  },
+
+  markRealtimeRead: (chatId: ChatId, readerId: ChatId, readAt: string, currentUserId?: ChatId | null) => {
+    const key = String(chatId);
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [key]: (s.messages[key] ?? []).map((m) =>
+          currentUserId != null && String(m.user_id) === String(currentUserId)
+            ? { ...m, read_at: readAt }
+            : m
+        ),
+      },
+      chats: String(readerId) === String(currentUserId)
+        ? s.chats.map((c) => String(c.id) === key ? { ...c, unread_count: 0 } : c)
+        : s.chats,
+    }));
+  },
+
+  updateChatRealtime: (chatId: ChatId, patch: Partial<Chat>) => {
+    const key = String(chatId);
+    set((s) => ({
+      chats: s.chats.map((c) => String(c.id) === key ? { ...c, ...patch } : c),
+    }));
   },
 }));

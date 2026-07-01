@@ -44,6 +44,12 @@ export default function ChatScreen() {
   const loadChats = useChatStore((s) => s.loadChats);
   const loadMessages = useChatStore((s) => s.loadMessages);
   const sendMessage = useChatStore((s) => s.sendMessage);
+  const markAsRead = useChatStore((s) => s.markAsRead);
+  const sendTyping = useChatStore((s) => s.sendTyping);
+  const heartbeat = useChatStore((s) => s.heartbeat);
+  const receiveRealtimeMessage = useChatStore((s) => s.receiveRealtimeMessage);
+  const markRealtimeRead = useChatStore((s) => s.markRealtimeRead);
+  const updateChatRealtime = useChatStore((s) => s.updateChatRealtime);
 
   const chat = chats.find((c) => String(c.id) === String(chatId));
   const list = messages ?? [];
@@ -51,6 +57,7 @@ export default function ChatScreen() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const keyboardVerticalOffset = Math.max(insets.top, 12) + HEADER_BODY_HEIGHT;
 
@@ -61,7 +68,60 @@ export default function ChatScreen() {
     }
     loadChats();
     loadMessages(chatId);
-  }, [chatId, loadChats, loadMessages, navigation]);
+    heartbeat().catch(() => undefined);
+    markAsRead(chatId).catch(() => undefined);
+  }, [chatId, heartbeat, loadChats, loadMessages, markAsRead, navigation]);
+
+  useEffect(() => {
+    let alive = true;
+    let channel: any = null;
+
+    (async () => {
+      const { getEcho, leaveProffiChat } = await import("../services/realtime");
+      const echo = await getEcho();
+      if (!alive || !echo) return;
+
+      channel = echo.private(`proffi.chat.${chatId}`)
+        .listen(".message.sent", (event: any) => {
+          if (!event?.message) return;
+          receiveRealtimeMessage(event.message);
+          if (String(event.message.sender_id) !== String(user?.id)) {
+            markAsRead(chatId).catch(() => undefined);
+          }
+        })
+        .listen(".messages.read", (event: any) => {
+          if (!event?.read_at) return;
+          markRealtimeRead(chatId, event.reader_id, event.read_at, user?.id);
+        })
+        .listen(".user.typing", (event: any) => {
+          if (String(event?.user_id) === String(user?.id)) return;
+          updateChatRealtime(chatId, { is_typing: Boolean(event?.is_typing) });
+          if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          typingTimerRef.current = setTimeout(() => updateChatRealtime(chatId, { is_typing: false }), 5500);
+        })
+        .listen(".presence.updated", (event: any) => {
+          if (String(event?.user_id) === String(user?.id)) return;
+          updateChatRealtime(chatId, {
+            other_is_online: Boolean(event?.is_online),
+            other_last_seen_at: event?.last_seen_at ?? null,
+          });
+        });
+
+      return () => leaveProffiChat(chatId);
+    })();
+
+    return () => {
+      alive = false;
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      if (channel) {
+        channel.stopListening(".message.sent");
+        channel.stopListening(".messages.read");
+        channel.stopListening(".user.typing");
+        channel.stopListening(".presence.updated");
+      }
+      import("../services/realtime").then(({ leaveProffiChat }) => leaveProffiChat(chatId)).catch(() => undefined);
+    };
+  }, [chatId, markAsRead, markRealtimeRead, receiveRealtimeMessage, updateChatRealtime, user?.id]);
 
   const scrollToEnd = useCallback((animated = true) => {
     if (list.length > 0) {
@@ -89,6 +149,11 @@ export default function ChatScreen() {
     }
   };
 
+  const onChangeText = (value: string) => {
+    setText(value);
+    sendTyping(chatId, value.trim().length > 0).catch(() => undefined);
+  };
+
   const renderItem = useCallback(({ item }: { item: Message }) => {
     const isMine = user?.id != null ? String(item.user_id) === String(user.id) : item.user_id === LOCAL_USER_ID;
     return <MessageBubble message={item} isMine={isMine} />;
@@ -109,6 +174,7 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
       <ScreenHeader title={chat?.title ?? t("chats")} onBack={() => navigation.goBack()} />
+      {chat?.is_typing ? <Text style={styles.typing}>печатает...</Text> : null}
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -131,7 +197,7 @@ export default function ChatScreen() {
         <KeyboardStickyView offset={{ closed: insets.bottom, opened: 0 }}>
           <ChatInput
             value={text}
-            onChangeText={setText}
+            onChangeText={onChangeText}
             onSend={onSend}
             placeholder={t("type_message")}
             sending={sending}
@@ -147,6 +213,13 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.white },
   list: { flex: 1, backgroundColor: colors.lavender50 },
+  typing: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xs,
+    color: colors.neutral500,
+    fontSize: 13,
+    backgroundColor: colors.white,
+  },
   listContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.md,

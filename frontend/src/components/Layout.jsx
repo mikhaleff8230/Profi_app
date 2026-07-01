@@ -4,9 +4,12 @@ import { useLang } from "../i18n";
 import { useAuth } from "../auth";
 
 export function AppShell({ children }) {
+  const location = useLocation();
+  const isChatDetail = location.pathname.startsWith("/chat/");
+  const isChatsList = location.pathname === "/chats";
   return (
     <div className="app-shell">
-      <div className="app-frame">{children}</div>
+      <div className={`app-frame ${isChatDetail ? "app-frame--chat" : ""} ${isChatsList ? "app-frame--chats" : ""}`}>{children}</div>
     </div>
   );
 }

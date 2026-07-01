@@ -14,7 +14,9 @@ function resolveBackendUrl() {
 }
 
 const BACKEND_URL = resolveBackendUrl();
-export const API = `${trimTrailingSlash(BACKEND_URL)}/api`;
+const API_NAMESPACE = (process.env.REACT_APP_API_NAMESPACE || "proffi").trim().replace(/^\/+|\/+$/g, "");
+export { BACKEND_URL };
+export const API = `${trimTrailingSlash(BACKEND_URL)}/api${API_NAMESPACE ? `/${API_NAMESPACE}` : ""}`;
 
 export const api = axios.create({ baseURL: API });
 
