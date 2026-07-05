@@ -7,6 +7,7 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { DatabaseProvider } from "./src/providers/DatabaseProvider";
 import { KeyboardRoot } from "./src/components/KeyboardRoot";
 import { AppErrorBoundary } from "./src/components/AppErrorBoundary";
+import { MobileUpdateGate } from "./src/components/MobileUpdateGate";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
               <LangProvider>
                 <AuthProvider>
                   <RootNavigator />
+                  <MobileUpdateGate />
                   <StatusBar style="dark" />
                 </AuthProvider>
               </LangProvider>

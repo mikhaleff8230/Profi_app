@@ -120,6 +120,20 @@ export type TreaboResponseSettings = {
   updated_at?: string | null;
 };
 
+export type TreaboMobileUpdateSettings = {
+  id?: number;
+  latest_version: string;
+  latest_build: number;
+  min_supported_build: number;
+  force_update: boolean;
+  android_url?: string | null;
+  ios_url?: string | null;
+  release_notes?: string | null;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type TreaboBalanceDeposit = {
   id: string;
   seller_id: string;

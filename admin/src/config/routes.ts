@@ -152,6 +152,7 @@ export const Routes = {
     filters: '/proffi/filters',
     responseSettings: '/proffi/response-settings',
     matchingSettings: '/proffi/matching-settings',
+    mobileUpdateSettings: '/proffi/mobile-update-settings',
     aiChat: '/proffi/ai-chat',
     reviews: '/proffi/reviews',
     verifications: '/proffi/verifications',

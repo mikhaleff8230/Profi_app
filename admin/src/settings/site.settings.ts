@@ -122,6 +122,12 @@ export const siteSettings = {
         permissions: adminOnly,
       },
       {
+        href: Routes.proffi.mobileUpdateSettings,
+        label: 'Treabo app update',
+        icon: 'DownloadIcon',
+        permissions: adminOnly,
+      },
+      {
         href: Routes.proffi.aiChat,
         label: 'AI инструкции',
         icon: 'QuestionIcon',
