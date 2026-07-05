@@ -24,6 +24,7 @@ type ApiMessage = {
   user_id?: string | number;
   text: string;
   type?: string;
+  metadata?: Record<string, any> | null;
   created_at: string;
   delivered_at?: string | null;
   read_at?: string | null;
@@ -48,7 +49,8 @@ function mapMessage(message: ApiMessage): Message {
     chat_id: message.chat_id,
     user_id: message.sender_id ?? message.user_id ?? 0,
     text: message.text,
-    type: message.type === "image" || message.type === "pin" ? message.type : "text",
+    type: message.type === "image" || message.type === "file" || message.type === "pin" ? message.type : "text",
+    metadata: message.metadata ?? null,
     created_at: message.created_at,
     delivered_at: message.delivered_at ?? null,
     read_at: message.read_at ?? null,
@@ -74,7 +76,7 @@ export class ApiChatService implements IChatService {
   async sendMessage(chatId: ChatId, payload: SendMessagePayload): Promise<Message> {
     const data = await apiFetch(`/chats/${chatId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ text: payload.text ?? "" }),
+      body: JSON.stringify({ text: payload.text ?? "", type: payload.type, metadata: payload.metadata }),
     });
     return mapMessage(data);
   }

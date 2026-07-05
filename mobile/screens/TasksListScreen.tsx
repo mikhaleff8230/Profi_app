@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,7 +14,8 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
-import { apiFetch } from "../src/api";
+import { apiFetch, fileUrl } from "../src/api";
+import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing } from "../src/theme";
 import { SearchBar } from "../components/SearchBar";
@@ -44,6 +46,8 @@ export default function TasksListScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     setCategory(route.params?.category_id || route.params?.category || "");
@@ -75,6 +79,7 @@ export default function TasksListScreen() {
       lat: coords?.lat,
       lng: coords?.lng,
       sort: coords ? "distance" : undefined,
+      favorites: favoritesOnly ? "1" : undefined,
     });
     try {
       const data = await apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" });
@@ -85,7 +90,7 @@ export default function TasksListScreen() {
     } finally {
       setLoading(false);
     }
-  }, [category, q, city, budgetMin, budgetMax, coords, categories]);
+  }, [category, q, city, budgetMin, budgetMax, coords, categories, favoritesOnly]);
 
   useEffect(() => {
     loadTasks();
@@ -96,6 +101,22 @@ export default function TasksListScreen() {
     if (status !== "granted") return;
     const loc = await Location.getCurrentPositionAsync({});
     setCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+  };
+
+  const toggleFavorite = async (task: TaskItem) => {
+    if (!user) return;
+    try {
+      if (task.is_favorite) {
+        await apiFetch(`/favorites/${task.id}`, { method: "DELETE" });
+      } else {
+        await apiFetch(`/favorites/${task.id}`, { method: "POST" });
+      }
+      setTasks((prev) =>
+        prev.map((row) => (String(row.id) === String(task.id) ? { ...row, is_favorite: !row.is_favorite } : row)),
+      );
+    } catch {
+      /* no-op */
+    }
   };
 
   const currentCat = categories.find((c) => String(c.id) === String(category));
@@ -127,6 +148,14 @@ export default function TasksListScreen() {
 
         <View style={styles.searchRow}>
           <SearchBar value={q} onChangeText={setQ} placeholder={t("search_orders")} onSubmit={loadTasks} />
+          {user?.role === "specialist" ? (
+            <TouchableOpacity
+              style={[styles.iconBtn, favoritesOnly && styles.iconBtnActive]}
+              onPress={() => setFavoritesOnly((v) => !v)}
+            >
+              <Ionicons name={favoritesOnly ? "heart" : "heart-outline"} size={22} color={colors.black} />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity style={styles.iconBtn} onPress={locate}>
             <Ionicons name="navigate-outline" size={22} color={colors.black} />
           </TouchableOpacity>
@@ -160,6 +189,42 @@ export default function TasksListScreen() {
             onSubmitEditing={loadTasks}
           />
         </View>
+
+        {categories.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catStrip}>
+            <TouchableOpacity
+              style={[styles.catItem, !category && styles.catItemActive]}
+              onPress={() => setCategory("")}
+            >
+              <View style={styles.catIconBox}>
+                <Ionicons name="grid-outline" size={22} color={colors.black} />
+              </View>
+              <Text style={styles.catLabel}>Все</Text>
+            </TouchableOpacity>
+            {categories.map((cat) => {
+              const active = String(cat.id) === String(category);
+              const imageUri = cat.image ? fileUrl(cat.image) : null;
+              return (
+                <TouchableOpacity
+                  key={String(cat.id)}
+                  style={[styles.catItem, active && styles.catItemActive]}
+                  onPress={() => setCategory(String(cat.id))}
+                >
+                  <View style={styles.catIconBox}>
+                    {imageUri ? (
+                      <Image source={{ uri: imageUri }} style={styles.catImage} resizeMode="cover" />
+                    ) : (
+                      <Ionicons name="briefcase-outline" size={22} color={colors.black} />
+                    )}
+                  </View>
+                  <Text style={styles.catLabel} numberOfLines={2}>
+                    {cat.name_ru}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {stories.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stories}>
@@ -198,6 +263,7 @@ export default function TasksListScreen() {
                   (c) => String(c.id) === String(task.category_id || task.category)
                 )}
                 onPress={() => navigation.navigate("TaskDetail", { taskId: String(task.id) })}
+                onToggleFavorite={user?.role === "specialist" ? () => toggleFavorite(task) : undefined}
               />
             ))}
           </View>
@@ -241,6 +307,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconBtnActive: { backgroundColor: "#D9F36B" },
   filters: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -257,6 +324,20 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
   },
+  catStrip: { paddingHorizontal: spacing.xl, gap: 12, marginBottom: spacing.lg },
+  catItem: { width: 72, alignItems: "center", gap: 6 },
+  catItemActive: { opacity: 1 },
+  catIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.lavender100,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  catImage: { width: 56, height: 56 },
+  catLabel: { fontSize: 11, fontWeight: "600", color: colors.black, textAlign: "center", lineHeight: 14 },
   stories: { paddingHorizontal: spacing.xl, gap: 10, marginBottom: spacing.lg },
   storyCard: {
     width: 120,

@@ -12,6 +12,7 @@ export type TaskFilters = {
   sw_lng?: number;
   ne_lat?: number;
   ne_lng?: number;
+  favorites?: string;
 };
 
 export function buildTaskQueryParams(filters: TaskFilters): string {
@@ -37,5 +38,6 @@ export function buildTaskQueryParams(filters: TaskFilters): string {
     params.set("ne_lat", String(filters.ne_lat));
     params.set("ne_lng", String(filters.ne_lng));
   }
+  if (filters.favorites) params.set("favorites", filters.favorites);
   return params.toString();
 }

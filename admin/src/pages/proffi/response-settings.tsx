@@ -12,6 +12,7 @@ import { FormEvent, useEffect, useState } from 'react';
 
 const defaults: TreaboResponseSettings = {
   free_daily_limit: 5,
+  free_per_task_limit: 5,
   default_response_price_mdl: 15,
   manual_deposit_amount_mdl: 100,
   manual_deposit_url: '',
@@ -45,6 +46,7 @@ export default function TreaboResponseSettingsPage() {
     try {
       const data = await putProffiAdmin<TreaboResponseSettings>('/api/admin/response-settings', {
         free_daily_limit: Number(form.free_daily_limit || 0),
+        free_per_task_limit: Number(form.free_per_task_limit || 0),
         default_response_price_mdl: Number(form.default_response_price_mdl || 0),
         manual_deposit_amount_mdl: Number(form.manual_deposit_amount_mdl || 100),
         manual_deposit_url: form.manual_deposit_url || null,
@@ -85,6 +87,20 @@ export default function TreaboResponseSettingsPage() {
             />
             <span className="mt-2 block text-xs text-body">
               По умолчанию 5. После исчерпания лимита будет показан платный попап.
+            </span>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-heading">Бесплатных откликов на заявку</span>
+            <input
+              type="number"
+              min={0}
+              className="w-full rounded border border-border-200 px-3 py-2"
+              value={form.free_per_task_limit ?? 5}
+              onChange={(e) => setForm({ ...form, free_per_task_limit: Number(e.target.value) })}
+            />
+            <span className="mt-2 block text-xs text-body">
+              После первых 60 минут только столько мастеров смогут откликнуться бесплатно на одну заявку.
             </span>
           </label>
 

@@ -20,21 +20,27 @@ export type RootStackParamList = {
         budget_max?: string;
       }
     | undefined;
+  TaskSearch: undefined;
+  TaskFilter: undefined;
   TaskDetail: { taskId: string };
+  TaskApply: { taskId: string; title?: string };
   CreateTask: undefined;
   ChatDetail: { chatId: string };
   SpecialistProfile: { specialistId: string };
+  PhoneChange: undefined;
+  IdentityVerification: undefined;
+  MyReviews: undefined;
 };
 
 export type MainTabParamList = {
   Home: undefined;
-  Orders: undefined;
+  Wallet: undefined;
   Chats: undefined;
   Profile: undefined;
 };
 
 export type AuthStackParamList = {
   Welcome: undefined;
-  PhoneEntry: { role: "customer" | "specialist" };
+  PhoneEntry: { role?: "customer" | "specialist" };
   Login: undefined;
 };

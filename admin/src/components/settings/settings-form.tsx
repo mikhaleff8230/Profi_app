@@ -42,7 +42,7 @@ import { isEmpty, split } from 'lodash';
 import omit from 'lodash/omit';
 import { useTranslation } from 'next-i18next';
 import { useRouter } from 'next/router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import OpenAIButton from '../openAI/openAI.button';
 import { useModalAction } from '../ui/modal/modal.context';
@@ -158,6 +158,7 @@ type FormValues = {
   maximumQuestionLimit: number;
   currencyToWalletRatio: number;
   contactDetails: ContactDetailsInput;
+  dark_logo?: any;
   seo: {
     metaTitle: string;
     metaDescription: string;
@@ -195,6 +196,29 @@ type paymentGatewayOption = {
   name: string;
   title: string;
 };
+
+function normalizePaymentGateways(value: unknown): paymentGatewayOption[] {
+  if (!value) {
+    return [];
+  }
+
+  const gateways = Array.isArray(value) ? value : Object.values(value as Record<string, unknown>);
+
+  return gateways
+    .filter(
+      (gateway): gateway is paymentGatewayOption =>
+        Boolean(
+          gateway &&
+            typeof gateway === 'object' &&
+            'name' in gateway &&
+            typeof (gateway as paymentGatewayOption).name === 'string'
+        )
+    )
+    .map((gateway) => ({
+      name: gateway.name,
+      title: gateway.title,
+    }));
+}
 
 const socialIcon = [
   {
@@ -243,21 +267,22 @@ export default function SettingsForm({ settings, taxClasses }: IProps) {
   const { mutate: updateSettingsMutation, isLoading: loading } =
     useUpdateSettingsMutation();
   const { language, options } = settings ?? {};
-  const [serverInfo, SetSeverInfo] = useState(options?.server_info);
+  const [serverInfo, SetSeverInfo] = useState(
+    options?.server_info ?? {
+      upload_max_filesize: 2048,
+    }
+  );
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    getValues,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<FormValues>({
-    shouldUnregister: true,
-    resolver: yupResolver(settingsValidationSchema),
-    defaultValues: {
+  const formDefaultValues = useMemo<FormValues>(
+    () => ({
       ...options,
+      siteTitle: options?.siteTitle ?? '',
+      siteSubtitle: options?.siteSubtitle ?? '',
+      signupPoints: options?.signupPoints ?? 0,
+      maxShopDistance: options?.maxShopDistance ?? 0,
+      maximumQuestionLimit: options?.maximumQuestionLimit ?? 5,
+      currencyToWalletRatio: options?.currencyToWalletRatio ?? 1,
+      minimumOrderAmount: options?.minimumOrderAmount ?? 0,
       server_info: serverInfo,
       contactDetails: {
         ...options?.contactDetails,
@@ -269,26 +294,19 @@ export default function SettingsForm({ settings, taxClasses }: IProps) {
           : [],
       },
       logo: options?.logo ?? '',
+      dark_logo: options?.dark_logo ?? '',
       useEnableGateway: options?.useEnableGateway ?? true,
       currency: options?.currency
         ? CURRENCY.find((item) => item.code == options?.currency)
-        : '',
+        : CURRENCY.find((item) => item.code === 'RUB') ?? CURRENCY[0],
       defaultAi: options?.defaultAi
         ? AI.find((item) => item.value == options?.defaultAi)
         : 'openai',
-
-      // guestCheckout: options?.guestCheckout ?? true,
-      // single-select on payment gateway
-      // paymentGateway: options?.paymentGateway
-      //   ? PAYMENT_GATEWAY.find((item) => item.name == options?.paymentGateway)
-      //   : PAYMENT_GATEWAY[0],
-
       defaultPaymentGateway: options?.defaultPaymentGateway
         ? PAYMENT_GATEWAY.find(
             (item) => item.name == options?.defaultPaymentGateway
           )
         : PAYMENT_GATEWAY[0],
-
       currencyOptions: {
         ...options?.currencyOptions,
         formation: options?.currencyOptions?.formation
@@ -296,33 +314,41 @@ export default function SettingsForm({ settings, taxClasses }: IProps) {
               (item) => item.code == options?.currencyOptions?.formation
             )
           : COUNTRY_LOCALE[0],
+        fractions: options?.currencyOptions?.fractions ?? 2,
       },
-      // multi-select on payment gateway
-      paymentGateway: options?.paymentGateway
-        ? options?.paymentGateway?.map((gateway: any) => ({
-            name: gateway?.name,
-            title: gateway?.title,
-          }))
-        : [],
-
+      paymentGateway: normalizePaymentGateways(options?.paymentGateway),
       // @ts-ignore
       taxClass: !!taxClasses?.length
         ? taxClasses?.find((tax: Tax) => tax.id == options?.taxClass)
         : '',
-      // @ts-ignore
-      // shippingClass: !!shippingClasses?.length
-      //   ? shippingClasses?.find(
-      //     (shipping: Shipping) => shipping.id == options?.shippingClass
-      //   )
-      //   : '',
       smsEvent: options?.smsEvent
         ? formatEventAPIData(options?.smsEvent)
         : null,
       emailEvent: options?.emailEvent
         ? formatEventAPIData(options?.emailEvent)
         : null,
-    },
+    }),
+    [options, serverInfo, taxClasses]
+  );
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    getValues,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<FormValues>({
+    shouldUnregister: true,
+    resolver: yupResolver(settingsValidationSchema),
+    defaultValues: formDefaultValues,
   });
+
+  useEffect(() => {
+    reset(formDefaultValues);
+  }, [formDefaultValues, reset]);
   const { openModal } = useModalAction();
 
   const generateName = watch('siteTitle');
@@ -407,6 +433,7 @@ export default function SettingsForm({ settings, taxClasses }: IProps) {
         guestCheckout: false,
         taxClass: values?.taxClass?.id,
         logo: values?.logo,
+        dark_logo: values?.dark_logo,
         smsEvent,
         emailEvent,
         contactDetails,
@@ -427,8 +454,12 @@ export default function SettingsForm({ settings, taxClasses }: IProps) {
   let useEnableGateway = watch('useEnableGateway');
   // let enableAi = watch('useAi');
 
-  const upload_max_filesize = options?.server_info?.upload_max_filesize! / 1024;
-  const max_fileSize = options?.server_info?.upload_max_filesize! * 1000;
+  const uploadMaxFilesizeKb =
+    options?.server_info?.upload_max_filesize ??
+    serverInfo?.upload_max_filesize ??
+    2048;
+  const upload_max_filesize = uploadMaxFilesizeKb / 1024;
+  const max_fileSize = uploadMaxFilesizeKb * 1000;
 
   // console.log('upload_max_filesize', upload_max_filesize)
 
@@ -491,7 +522,12 @@ export default function SettingsForm({ settings, taxClasses }: IProps) {
         />
 
         <Card className="w-full sm:w-8/12 md:w-2/3">
-          <FileInput name="dark_logo" control={control} multiple={false} />
+          <FileInput
+            name="dark_logo"
+            control={control}
+            multiple={false}
+            maxSize={max_fileSize}
+          />
         </Card>
       </div>
 

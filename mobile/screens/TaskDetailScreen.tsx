@@ -31,7 +31,7 @@ import type { RootStackParamList } from "../src/navigation/types";
 import type { CategoryTileData } from "../components/CategoryTile";
 import type { Application, ApplicationPreview, Task } from "../src/types/proffi";
 import { resolveTaskPhotos } from "../src/utils/photos";
-import { formatResponseFeeMdl } from "../src/utils/currency";
+import { formatResponseFeeMdl, formatTaskBudget } from "../src/utils/currency";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type R = RouteProp<RootStackParamList, "TaskDetail">;
@@ -46,6 +46,11 @@ type SpecInfo = {
   customer?: { id: string; name: string; last_seen?: string };
 };
 
+type DetailRow = {
+  label: string;
+  value: string;
+};
+
 function yandexStaticMapUrl(lat: number, lng: number): string {
   const params = new URLSearchParams({
     ll: `${lng},${lat}`,
@@ -58,6 +63,72 @@ function yandexStaticMapUrl(lat: number, lng: number): string {
   const apiKey = yandexMapsApiKey();
   if (apiKey) params.set("apikey", apiKey);
   return `https://static-maps.yandex.ru/v1?${params.toString()}`;
+}
+
+function stringifyDetailValue(value: unknown): string {
+  if (value == null) return "";
+  if (Array.isArray(value)) return value.filter(Boolean).map(String).join(", ");
+  if (typeof value === "object") return "";
+  return String(value).trim();
+}
+
+function parseDescriptionDetails(description: string): DetailRow[] {
+  const rows: DetailRow[] = [];
+  const lines = description.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  let inAnswers = false;
+
+  for (const line of lines) {
+    if (/^Уточнения:?$/i.test(line)) {
+      inAnswers = true;
+      continue;
+    }
+    if (/^(Запрос клиента|Кратко|Дополнительные пожелания):/i.test(line)) {
+      const [label, ...rest] = line.split(":");
+      const value = rest.join(":").trim();
+      if (value) rows.push({ label: label.trim(), value });
+      inAnswers = false;
+      continue;
+    }
+    if (inAnswers && line.includes(":")) {
+      const [label, ...rest] = line.split(":");
+      const value = rest.join(":").trim();
+      if (label.trim() && value) rows.push({ label: label.trim(), value });
+    }
+  }
+
+  return rows;
+}
+
+function rowsFromStructuredDetails(details: Record<string, unknown> | null | undefined): DetailRow[] {
+  if (!details) return [];
+  const rows: DetailRow[] = [];
+  const answers = details.question_answers;
+  const labels: Record<string, string> = {
+    city: "Город",
+    urgency: "Срок",
+    master_summary: "Кратко",
+    ai_description: "Описание AI",
+    additional_details: "Дополнительные пожелания",
+  };
+
+  if (Array.isArray(answers)) {
+    answers.forEach((item) => {
+      if (!item || typeof item !== "object") return;
+      const record = item as Record<string, unknown>;
+      const label = stringifyDetailValue(record.question || record.label || record.key);
+      const value = stringifyDetailValue(record.answer || record.value);
+      if (label && value) rows.push({ label, value });
+    });
+  }
+
+  const skip = new Set(["question_answers", "prompt", "title", "category_id", "category_slug", "work_id"]);
+  Object.entries(details).forEach(([label, value]) => {
+    if (skip.has(label)) return;
+    const normalized = stringifyDetailValue(value);
+    if (normalized) rows.push({ label: labels[label] || label, value: normalized });
+  });
+
+  return rows;
 }
 
 export default function TaskDetailScreen() {
@@ -132,6 +203,17 @@ export default function TaskDetailScreen() {
   }, [load]);
 
   const cat = task ? categories.find((c) => String(c.id) === String(task.category_id || task.category)) : null;
+  const detailRows: DetailRow[] = task
+    ? [
+        cat ? { label: "Категория", value: cat.name_ru } : null,
+        task.city ? { label: "Город", value: task.city } : null,
+        task.work_title || task.work?.title || task.work?.name
+          ? { label: "Работа", value: String(task.work_title || task.work?.title || task.work?.name) }
+          : null,
+        ...rowsFromStructuredDetails(task.details || task.ai_answers || task.answers),
+        ...parseDescriptionDetails(task.description),
+      ].filter((row): row is DetailRow => Boolean(row && row.value))
+    : [];
   const isOwner = user?.role === "customer" && task && String(task.customer_id) === String(user.id);
   const isSpecialist = user?.role === "specialist";
   const hasApplied = specInfo?.has_applied;
@@ -152,7 +234,7 @@ export default function TaskDetailScreen() {
         /* preview optional */
       }
     }
-    setShowApply(true);
+    navigation.navigate("TaskApply", { taskId, title: task?.title });
   };
 
   const submitApplication = async () => {
@@ -243,6 +325,7 @@ export default function TaskDetailScreen() {
   const showFooter = isSpecialist && (task.status === "open" || !!chatId);
   const photos = resolveTaskPhotos(task.photos);
   const hasCoords = task.lat != null && task.lng != null;
+  const budgetLabel = formatTaskBudget(task);
 
   return (
     <ScreenLayout bottomInset={!showFooter}>
@@ -322,14 +405,16 @@ export default function TaskDetailScreen() {
           <Text style={styles.desc}>{task.description}</Text>
         </CardLight>
 
+        {budgetLabel && (
+          <View style={styles.budgetCard}>
+            <Text style={styles.budgetLabel}>Бюджет задания</Text>
+            <Text style={styles.budgetValue}>{budgetLabel}</Text>
+          </View>
+        )}
+
         <CardLight style={styles.metaCard}>
           <View style={styles.badgeRow}>
             <Badge variant={statusVariant as "default" | "warning" | "success" | "muted"}>{t(task.status) || task.status}</Badge>
-            {task.budget != null && task.budget > 0 && (
-              <Badge>
-                {t("budget_upto")} {task.budget} {t("rub")}
-              </Badge>
-            )}
           </View>
           {cat && (
             <View style={styles.rowSm}>
@@ -346,6 +431,20 @@ export default function TaskDetailScreen() {
             </Text>
           </View>
         </CardLight>
+
+        {detailRows.length > 0 && (
+          <CardLight style={styles.detailsCard}>
+            <Text style={styles.h2}>Детали заявки</Text>
+            <View style={styles.detailsList}>
+              {detailRows.map((row, index) => (
+                <View key={`${row.label}-${index}`} style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{row.label}</Text>
+                  <Text style={styles.detailValue}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
+          </CardLight>
+        )}
 
         {(task.address || task.city || hasCoords) && (
           <CardLight style={styles.mapCard}>
@@ -548,7 +647,26 @@ const styles = StyleSheet.create({
   custSub: { fontSize: 12, color: colors.neutral400 },
   desc: { fontSize: 16, color: colors.neutral700, lineHeight: 24 },
   sectionCard: { backgroundColor: colors.white, marginBottom: 16 },
+  budgetCard: {
+    borderRadius: 24,
+    backgroundColor: "#D9F36B",
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+  },
+  budgetLabel: { fontSize: 13, fontWeight: "700", color: colors.neutral700, marginBottom: 6 },
+  budgetValue: { fontSize: 28, lineHeight: 34, fontWeight: "800", color: colors.black },
   metaCard: { backgroundColor: colors.lavender50, borderWidth: 0, gap: 8, marginBottom: 16 },
+  detailsCard: { backgroundColor: colors.white, marginBottom: 16 },
+  detailsList: { gap: 10 },
+  detailRow: {
+    borderRadius: 16,
+    backgroundColor: colors.lavender50,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  detailLabel: { fontSize: 12, fontWeight: "700", color: colors.neutral500, marginBottom: 4 },
+  detailValue: { fontSize: 15, lineHeight: 21, color: colors.black },
   mapCard: { backgroundColor: colors.white, marginBottom: 16, gap: 10 },
   mapHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   addressText: { fontSize: 14, color: colors.neutral700, lineHeight: 20 },

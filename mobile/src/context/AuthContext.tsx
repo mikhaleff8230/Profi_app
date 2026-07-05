@@ -15,6 +15,7 @@ export type User = {
   city?: string | null;
   phone?: string | null;
   avatar?: string | null;
+  portfolio?: string[];
   services?: string[];
   rating?: number;
   reviews_count?: number;
@@ -34,6 +35,10 @@ const DEV_MOCK_USER: User = {
   is_verified: true,
   phone: "+70000000000",
 };
+
+function isAllowedAppUser(user: User | null | undefined): user is User {
+  return user?.role === "specialist";
+}
 
 type AuthCtx = {
   user: User | null;
@@ -57,6 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = decodeURIComponent(tokenMatch[1].replace(/\+/g, "%20"));
     await setToken(token);
     const me = await apiFetch("/auth/me", { method: "GET" });
+    if (!isAllowedAppUser(me as User)) {
+      await setToken(null);
+      setUser(null);
+      return false;
+    }
     setUser(me as User);
     if (Platform.OS === "web" && typeof window !== "undefined" && window.history?.replaceState) {
       window.history.replaceState({}, document.title, window.location.pathname || "/");
@@ -75,6 +85,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const me = await apiFetch("/auth/me", { method: "GET" });
+    if (!isAllowedAppUser(me as User)) {
+      await setToken(null);
+      setUser(null);
+      return;
+    }
     setUser(me as User);
   }, []);
 
@@ -119,6 +134,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [consumeOAuthUrl]);
 
   const signIn = useCallback(async (token: string, u: User) => {
+    if (!isAllowedAppUser(u)) {
+      await setToken(null);
+      setUser(null);
+      throw new Error("Приложение доступно только мастерам");
+    }
     resetEcho();
     await setToken(token);
     setUser(u);

@@ -1,27 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { TabScreenLayout } from "../components/TabScreenLayout";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { TabScreenLayout } from "../components/TabScreenLayout";
+import { PrimaryButton } from "../components/PrimaryButton";
+import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
+import { CategoryTile } from "../components/CategoryTile";
 import { apiFetch } from "../src/api";
 import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
-import { colors, spacing, typography } from "../src/theme";
-import { CategoryTile, type CategoryTileData } from "../components/CategoryTile";
-
-import { PrimaryButton } from "../components/PrimaryButton";
-import { SearchBar } from "../components/SearchBar";
-import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
+import { colors, spacing } from "../src/theme";
+import type { CategoryTileData } from "../components/CategoryTile";
 import type { MainTabParamList, RootStackParamList } from "../src/navigation/types";
 
 type Nav = CompositeNavigationProp<
@@ -29,21 +21,25 @@ type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
+const TELEGRAM_URL = "https://t.me/+IKp5Qdq27MU3NGIy";
+
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useAuth();
   const { t } = useLang();
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [cats, ts] = await Promise.all([apiFetch("/categories", { method: "GET" }), apiFetch("/tasks", { method: "GET" })]);
+      const [cats, ts] = await Promise.all([
+        apiFetch("/categories", { method: "GET" }),
+        apiFetch("/tasks", { method: "GET" }),
+      ]);
       setCategories(Array.isArray(cats) ? cats : []);
-      setTasks(Array.isArray(ts) ? ts.slice(0, 8) : []);
+      setTasks(Array.isArray(ts) ? ts : []);
     } catch {
       setCategories([]);
       setTasks([]);
@@ -56,82 +52,72 @@ export default function HomeScreen() {
     load();
   }, [load]);
 
-  const filteredTasks = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter((x) => (x.title + (x.description || "")).toLowerCase().includes(q));
-  }, [tasks, search]);
-
-  const roleLabel = user?.role === "customer" ? t("customer") : t("specialist");
-  const title =
-    user?.role === "customer" ? t("home_title_customer") : t("home_title_specialist");
-
   return (
     <TabScreenLayout>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.roleCaps}>{roleLabel}</Text>
-            <Text style={styles.title}>{title}</Text>
+        <View style={styles.segment}>
+          <View style={styles.segmentOn}>
+            <Text style={styles.segmentOnText}>Список</Text>
           </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.mapBtn}
-              onPress={() => navigation.navigate("Map")}
-              accessibilityLabel={t("map_view")}
-            >
-            <Ionicons name="map-outline" size={22} color={colors.black} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <SearchBar value={search} onChangeText={setSearch} placeholder={t("search_placeholder")} />
-
-        {user?.role === "customer" && (
-          <PrimaryButton
-            title={t("create_task")}
-            onPress={() => navigation.navigate("CreateTask")}
-            style={styles.createBtn}
-          />
-        )}
-
-        <Text style={styles.sectionTitle}>{t("categories")}</Text>
-        {loading ? (
-          <ActivityIndicator style={styles.loader} color={colors.neutral400} />
-        ) : (
-          <View style={styles.catGrid}>
-            {categories.map((c) => (
-              <View key={c.id} style={styles.catCell}>
-                <CategoryTile cat={c} onPress={() => navigation.navigate("TasksList", { category: String(c.id) })} />
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>{t("open_tasks")}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("TasksList", { q: search.trim() || undefined })}>
-            <Text style={styles.viewAll}>
-              {t("view_all")} →
-            </Text>
+          <TouchableOpacity style={styles.segmentOff} onPress={() => navigation.navigate("Map")}>
+            <Text style={styles.segmentOffText}>Карта</Text>
           </TouchableOpacity>
         </View>
 
-        {filteredTasks.length === 0 && !loading ? (
+        <TouchableOpacity style={styles.telegramBanner} onPress={() => void Linking.openURL(TELEGRAM_URL)} activeOpacity={0.9}>
+          <View style={styles.telegramIcon}>
+            <Ionicons name="paper-plane" size={20} color={colors.white} />
+          </View>
+          <View style={styles.telegramText}>
+            <Text style={styles.telegramTitle}>Telegram-группа мастеров</Text>
+            <Text style={styles.telegramSub}>Новости, советы и общение</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.neutral400} />
+        </TouchableOpacity>
+
+        <View style={styles.searchRow}>
+          <TouchableOpacity style={styles.searchFake} onPress={() => navigation.navigate("TaskSearch")}>
+            <Ionicons name="search-outline" size={20} color={colors.neutral500} />
+            <Text style={styles.searchText}>Какой заказ ищете?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.filterBtn} onPress={() => navigation.navigate("TaskFilter")}>
+            <Ionicons name="options-outline" size={22} color={colors.black} />
+          </TouchableOpacity>
+        </View>
+
+        {user?.role === "customer" && (
+          <PrimaryButton title={t("create_task")} onPress={() => navigation.navigate("CreateTask")} style={styles.createBtn} />
+        )}
+
+        {categories.length > 0 && (
+          <View style={styles.categories}>
+            <Text style={styles.sectionTitle}>{t("categories")}</Text>
+            <View style={styles.categoryGrid}>
+              {categories.slice(0, 8).map((cat) => (
+                <CategoryTile
+                  key={String(cat.id)}
+                  cat={cat}
+                  onPress={() => navigation.navigate("TasksList", { category_id: String(cat.id) })}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {loading ? (
+          <ActivityIndicator style={styles.loader} color={colors.neutral400} />
+        ) : tasks.length === 0 ? (
           <Text style={styles.empty}>{t("no_tasks")}</Text>
         ) : (
           <View style={styles.taskList}>
-            {filteredTasks.map((task) => {
-              const cat = categories.find((x) => String(x.id) === String(task.category));
-              return (
-                <TaskCardRow
-                  key={String(task.id)}
-                  task={task}
-                  category={cat}
-                  onPress={() => navigation.navigate("TaskDetail", { taskId: String(task.id) })}
-                />
-              );
-            })}
+            {tasks.map((task) => (
+              <TaskCardRow
+                key={String(task.id)}
+                task={task}
+                category={categories.find((c) => String(c.id) === String(task.category_id || task.category))}
+                onPress={() => navigation.navigate("TaskDetail", { taskId: String(task.id) })}
+              />
+            ))}
           </View>
         )}
       </ScrollView>
@@ -140,46 +126,60 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: spacing.xl, paddingBottom: 32 },
-  header: {
+  scroll: { flex: 1, backgroundColor: colors.lavender50 },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: 32 },
+  segment: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingTop: spacing.md,
-    marginBottom: spacing.lg,
+    alignSelf: "flex-start",
+    backgroundColor: colors.lavender100,
+    borderRadius: 14,
+    padding: 3,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
   },
-  headerText: { flex: 1, paddingRight: 8 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
-  mapBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.lavender50,
+  segmentOn: { backgroundColor: colors.white, borderRadius: 11, paddingHorizontal: 18, paddingVertical: 8 },
+  segmentOff: { borderRadius: 11, paddingHorizontal: 18, paddingVertical: 8 },
+  segmentOnText: { fontSize: 13, fontWeight: "700", color: colors.black },
+  segmentOffText: { fontSize: 13, fontWeight: "700", color: colors.neutral500 },
+  telegramBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.neutral100,
+  },
+  telegramIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#229ED9",
     alignItems: "center",
     justifyContent: "center",
   },
-  roleCaps: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.neutral400,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  title: { ...typography.title, fontSize: 22 },
-  createBtn: { marginTop: spacing.lg, marginBottom: spacing.xl },
-  sectionTitle: { ...typography.headline, fontSize: 16, marginBottom: spacing.md },
-  sectionHead: {
+  telegramText: { flex: 1 },
+  telegramTitle: { fontSize: 15, fontWeight: "800", color: colors.black },
+  telegramSub: { fontSize: 12, color: colors.neutral500, marginTop: 2 },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.md },
+  searchFake: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.white,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
+    gap: 8,
+    paddingHorizontal: 14,
   },
-  viewAll: { fontSize: 12, fontWeight: "600", color: colors.neutral500 },
-  catGrid: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -4 },
-  catCell: { width: "25%", padding: 4 },
+  searchText: { fontSize: 14, color: colors.neutral500 },
+  filterBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: colors.white, alignItems: "center", justifyContent: "center" },
+  createBtn: { marginBottom: spacing.md },
+  categories: { marginBottom: spacing.md },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.black, marginBottom: spacing.sm },
+  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   taskList: { gap: 12 },
   loader: { marginVertical: 24 },
   empty: { textAlign: "center", color: colors.neutral400, paddingVertical: 24, fontSize: 14 },

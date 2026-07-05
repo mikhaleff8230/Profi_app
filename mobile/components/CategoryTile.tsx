@@ -1,10 +1,10 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useLang } from "../src/context/LangContext";
-import { colors, radii } from "../src/theme";
+import { fileUrl } from "../src/api";
+import { colors } from "../src/theme";
 
-export type CategoryTileData = { id: number; name_ru: string; icon?: string };
+export type CategoryTileData = { id: number | string; name_ru: string; icon?: string; image?: string | null };
 
 const FALLBACK_ICON: keyof typeof Ionicons.glyphMap = "grid-outline";
 
@@ -23,13 +23,17 @@ function iconFor(iconName?: string): keyof typeof Ionicons.glyphMap {
 }
 
 export function CategoryTile({ cat, onPress }: { cat: CategoryTileData; onPress: () => void }) {
-  const { lang } = useLang();
   const label = cat.name_ru;
   const icon = iconFor(cat.icon);
+  const imageUri = cat.image ? fileUrl(cat.image) : null;
   return (
     <TouchableOpacity style={styles.wrap} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.iconBox}>
-        <Ionicons name={icon} size={26} color={colors.black} />
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={styles.catImage} resizeMode="cover" />
+        ) : (
+          <Ionicons name={icon} size={26} color={colors.black} />
+        )}
       </View>
       <Text style={styles.label} numberOfLines={2}>
         {label}
@@ -47,6 +51,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lavender100,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  catImage: { width: 56, height: 56 },
   label: { fontSize: 11, fontWeight: "600", color: colors.black, textAlign: "center", lineHeight: 14 },
 });

@@ -73,6 +73,13 @@ export default function ChatScreen() {
   }, [chatId, heartbeat, loadChats, loadMessages, markAsRead, navigation]);
 
   useEffect(() => {
+    const timer = setInterval(() => {
+      loadMessages(chatId).then(() => markAsRead(chatId)).catch(() => undefined);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [chatId, loadMessages, markAsRead]);
+
+  useEffect(() => {
     let alive = true;
     let channel: any = null;
 

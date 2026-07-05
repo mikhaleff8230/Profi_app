@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { TabScreenLayout } from "../components/TabScreenLayout";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +20,9 @@ import { apiFetch, apiUploadFile, fileUrl } from "../src/api";
 import { useAuth, type User } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing, typography } from "../src/theme";
+import { fetchAccountSummary, type AccountSummary } from "../src/services/account";
+import { formatRuNationalDisplay, toNational10FromApi } from "../src/utils/phone";
+import type { RootStackParamList } from "../src/navigation/types";
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { CardLight } from "../components/CardLight";
@@ -33,16 +38,36 @@ type Stats = {
   in_progress?: number;
 };
 
+type IdentityStatus = "not_submitted" | "pending" | "approved" | "rejected";
+
+const IDENTITY_META: Record<IdentityStatus, { text: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  not_submitted: { text: "Паспорт не подтвержден", color: colors.neutral500, icon: "shield-outline" },
+  pending: { text: "Паспорт на проверке", color: "#D7A948", icon: "time-outline" },
+  approved: { text: "Паспорт проверен", color: "#22C55E", icon: "checkmark-circle" },
+  rejected: { text: "Паспорт отклонен", color: "#EF4444", icon: "close-circle" },
+};
+
+function formatPhoneDisplay(phone?: string | null): string {
+  if (!phone) return "—";
+  const national = toNational10FromApi(phone);
+  if (national.length === 10) return `+7 ${formatRuNationalDisplay(national)}`;
+  return phone;
+}
+
 export default function ProfileScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, setUser, logout } = useAuth();
   const { t } = useLang();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [account, setAccount] = useState<AccountSummary | null>(null);
+  const [identityStatus, setIdentityStatus] = useState<IdentityStatus>("not_submitted");
   const [editingBio, setEditingBio] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [bio, setBio] = useState("");
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [services, setServices] = useState("");
+  const [portfolio, setPortfolio] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -50,6 +75,13 @@ export default function ProfileScreen() {
     apiFetch("/auth/stats", { method: "GET" })
       .then(setStats)
       .catch(() => setStats(null));
+    fetchAccountSummary().then(setAccount).catch(() => setAccount(null));
+    apiFetch("/identity-verification", { method: "GET" })
+      .then((data) => {
+        const status = data?.status as IdentityStatus | undefined;
+        if (status && IDENTITY_META[status]) setIdentityStatus(status);
+      })
+      .catch(() => setIdentityStatus("not_submitted"));
   }, []);
 
   useEffect(() => {
@@ -58,6 +90,7 @@ export default function ProfileScreen() {
       setName(user.name || "");
       setCity(user.city || "");
       setServices((user.services || []).join(", "));
+      setPortfolio(user.portfolio || []);
     }
   }, [user]);
 
@@ -85,7 +118,7 @@ export default function ProfileScreen() {
       setEditingBio(false);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("РћС€РёР±РєР°", e instanceof Error ? e.message : String(e));
+      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -104,7 +137,7 @@ export default function ProfileScreen() {
       setEditingName(false);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("РћС€РёР±РєР°", e instanceof Error ? e.message : String(e));
+      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -113,7 +146,7 @@ export default function ProfileScreen() {
   const pickAvatar = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Р”РѕСЃС‚СѓРї", "РќСѓР¶РЅРѕ СЂР°Р·СЂРµС€РµРЅРёРµ РЅР° С„РѕС‚Рѕ");
+      Alert.alert("Доступ", "Нужно разрешение на фото");
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -133,16 +166,52 @@ export default function ProfileScreen() {
       setUser(data as User);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("РћС€РёР±РєР°", e instanceof Error ? e.message : String(e));
+      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
     } finally {
       setUploading(false);
     }
   }, [setUser, t]);
 
+  const pickPortfolio = useCallback(async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Доступ", "Нужно разрешение на фото");
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+      allowsMultipleSelection: true,
+      selectionLimit: Math.max(1, 10 - portfolio.length),
+    });
+    if (res.canceled || !res.assets.length) return;
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const asset of res.assets.slice(0, Math.max(0, 10 - portfolio.length))) {
+        const upload = await apiUploadFile(asset.uri, asset.mimeType || "image/jpeg", "portfolio.jpg");
+        uploaded.push(upload.path);
+      }
+      const nextPortfolio = [...portfolio, ...uploaded].slice(0, 10);
+      const data = await apiFetch("/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ portfolio: nextPortfolio }),
+      });
+      setUser(data as User);
+      setPortfolio(nextPortfolio);
+      Alert.alert(t("success"));
+    } catch (e: unknown) {
+      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  }, [portfolio, setUser, t]);
+
   if (!user) return null;
 
   const isSpecialist = user.role === "specialist";
   const avatarUri = fileUrl(user.avatar);
+  const identity = IDENTITY_META[identityStatus];
 
   return (
     <TabScreenLayout>
@@ -156,10 +225,18 @@ export default function ProfileScreen() {
               accessibilityRole="button"
               accessibilityLabel="Выйти"
             >
-              <Ionicons name="settings-outline" size={22} color={colors.neutral500} />
+              <Ionicons name="log-out-outline" size={22} color={colors.neutral500} />
             </TouchableOpacity>
           </View>
         </View>
+
+        <CardLight style={styles.phoneCard}>
+          <Ionicons name="call-outline" size={18} color={colors.neutral500} />
+          <Text style={styles.phoneText}>{formatPhoneDisplay(user.phone)}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("PhoneChange")}>
+            <Text style={styles.linkText}>Сменить</Text>
+          </TouchableOpacity>
+        </CardLight>
 
         <View style={styles.avatarRow}>
           <View style={styles.avatarWrap}>
@@ -238,10 +315,37 @@ export default function ProfileScreen() {
         )}
 
         {isSpecialist && (
-          <View style={styles.verifiedPill}>
-            <Ionicons name="checkmark-circle" size={16} color={colors.black} />
-            <Text style={styles.verifiedText}>{t("verified_passport")}</Text>
+          <View style={[styles.verifiedPill, { backgroundColor: colors.lavender50 }]}>
+            <Ionicons name={identity.icon} size={16} color={identity.color} />
+            <Text style={[styles.verifiedText, { color: identity.color }]}>{identity.text}</Text>
           </View>
+        )}
+
+        {isSpecialist && identityStatus !== "pending" && identityStatus !== "approved" && (
+          <PrimaryButton
+            title="Пройти верификацию"
+            onPress={() => navigation.navigate("IdentityVerification")}
+          />
+        )}
+
+        {isSpecialist && (
+          <TouchableOpacity style={styles.menuRow} onPress={() => navigation.navigate("MyReviews")}>
+            <Text style={styles.menuRowText}>Мои отзывы</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.neutral400} />
+          </TouchableOpacity>
+        )}
+
+        {isSpecialist && (
+          <CardLight style={styles.balanceCard}>
+            <View>
+              <Text style={styles.balanceLabel}>Баланс</Text>
+              <Text style={styles.balanceValue}>{Math.round(account?.balance ?? 0).toLocaleString("ru-RU")} ₽</Text>
+            </View>
+            <View style={styles.freePill}>
+              <Text style={styles.freePillValue}>{account?.free_remaining_today ?? 0}</Text>
+              <Text style={styles.freePillText}>откликов</Text>
+            </View>
+          </CardLight>
         )}
 
         <CardLight style={styles.statsCard}>
@@ -307,17 +411,33 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <View style={styles.footerMeta}>
-          <Ionicons name="call-outline" size={16} color={colors.neutral500} />
-          <Text style={styles.footerText}>{user.phone || "вЂ”"}</Text>
-          {user.city ? (
-            <>
-              <Text style={styles.dot}>вЂў</Text>
-              <Ionicons name="location-outline" size={16} color={colors.neutral500} />
-              <Text style={styles.footerText}>{user.city}</Text>
-            </>
-          ) : null}
-        </View>
+        {isSpecialist && (
+          <View style={styles.services}>
+            <View style={styles.portfolioHead}>
+              <Text style={styles.sectionTitle}>Портфолио</Text>
+              <TouchableOpacity style={styles.addPortfolioBtn} onPress={pickPortfolio} disabled={uploading || portfolio.length >= 10}>
+                <Ionicons name="add" size={18} color={colors.black} />
+              </TouchableOpacity>
+            </View>
+            {portfolio.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.portfolioTrack}>
+                {portfolio.map((item, index) => {
+                  const uri = fileUrl(item);
+                  return uri ? <Image key={`${item}-${index}`} source={{ uri }} style={styles.portfolioImage} /> : null;
+                })}
+              </ScrollView>
+            ) : (
+              <Text style={styles.bioText}>Добавьте фотографии работ</Text>
+            )}
+          </View>
+        )}
+
+        {user.city ? (
+          <View style={styles.footerMeta}>
+            <Ionicons name="location-outline" size={16} color={colors.neutral500} />
+            <Text style={styles.footerText}>{user.city}</Text>
+          </View>
+        ) : null}
       </ScrollView>
     </TabScreenLayout>
   );
@@ -339,7 +459,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   title: { ...typography.title, fontSize: 22 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -351,6 +471,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.lavender50,
   },
+  phoneCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: spacing.lg,
+    backgroundColor: colors.lavender50,
+    borderWidth: 0,
+  },
+  phoneText: { fontSize: 16, fontWeight: "700", color: colors.black, flex: 1 },
+  linkText: { fontSize: 14, fontWeight: "700", color: colors.black, textDecorationLine: "underline" },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral100,
+    marginBottom: spacing.md,
+  },
+  menuRowText: { fontSize: 16, fontWeight: "700", color: colors.black },
   avatarRow: { flexDirection: "row", alignItems: "flex-start", gap: 16, marginBottom: 16 },
   avatarWrap: { position: "relative" },
   avatarImg: { width: 96, height: 96, borderRadius: 16, backgroundColor: colors.lavender100 },
@@ -383,7 +523,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: colors.lavender100,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: radii.full,
@@ -391,6 +530,19 @@ const styles = StyleSheet.create({
   },
   verifiedText: { fontSize: 14, fontWeight: "600" },
   statsCard: { backgroundColor: colors.lavender50, borderWidth: 0, marginBottom: 16 },
+  balanceCard: {
+    backgroundColor: "#D9F36B",
+    borderWidth: 0,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  balanceLabel: { fontSize: 12, fontWeight: "700", color: colors.neutral700, marginBottom: 4 },
+  balanceValue: { fontSize: 26, fontWeight: "800", color: colors.black },
+  freePill: { borderRadius: 18, backgroundColor: colors.white, paddingHorizontal: 12, paddingVertical: 8, alignItems: "center" },
+  freePillValue: { fontSize: 18, fontWeight: "800", color: colors.black },
+  freePillText: { fontSize: 11, color: colors.neutral500 },
   statsRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   statsTitle: { fontSize: 18, fontWeight: "800" },
   statsGrid: { flexDirection: "row", gap: 12, marginBottom: 24 },
@@ -417,7 +569,10 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { backgroundColor: colors.lavender100, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.full },
   chipText: { fontSize: 14, fontWeight: "600" },
+  portfolioHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  addPortfolioBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.lavender50, alignItems: "center", justifyContent: "center" },
+  portfolioTrack: { gap: 10 },
+  portfolioImage: { width: 104, height: 104, borderRadius: 16, backgroundColor: colors.lavender50 },
   footerMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.neutral100 },
   footerText: { fontSize: 14, color: colors.neutral500 },
-  dot: { color: colors.neutral500 },
 });

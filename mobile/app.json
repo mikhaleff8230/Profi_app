@@ -1,37 +1,41 @@
 {
   "expo": {
-    "name": "Proffi",
-    "slug": "proffi",
+    "name": "Treabo",
+    "slug": "treabo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "proffi",
+    "scheme": "treabo",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/treabo-logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f5f3ff"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "ru.sancan.proffi"
+      "bundleIdentifier": "ru.sancan.proffi",
+      "icon": "./assets/icon.png"
     },
     "android": {
       "package": "ru.sancan.proffi",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#f5f3ff"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Proffi использует геолокацию для карты заказов рядом с вами."
+          "locationWhenInUsePermission": "Treabo использует геолокацию, чтобы показывать задания рядом с вами."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Приложению нужен доступ к фото для смены аватара в профиле."
+          "photosPermission": "Treabo нужен доступ к фото для аватара, портфолио и файлов в заданиях."
         }
       ],
       "expo-asset",

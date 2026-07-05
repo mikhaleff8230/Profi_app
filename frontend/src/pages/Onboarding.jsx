@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { Telescope } from "lucide-react";
 import { useLang } from "../i18n";
+import { SiteLogo } from "../components/Layout";
 
 
 export default function Onboarding() {
@@ -12,10 +12,7 @@ export default function Onboarding() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center gap-8 animate-fade-in-up">
-        <div className="relative">
-          <Telescope size={140} strokeWidth={1.2} className="text-black" />
-          <div className="absolute -right-4 -top-2 text-3xl">✦</div>
-        </div>
+        <SiteLogo className="h-16 w-auto max-w-[220px] object-contain" fallbackClassName="text-4xl font-extrabold tracking-tight text-black" />
         <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-black text-center leading-tight">
           {t("onboarding_title")}
         </h1>

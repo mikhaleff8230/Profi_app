@@ -1320,6 +1320,7 @@ export interface SettingsOptions {
   maximumQuestionLimit?: number;
   deliveryTime?: DeliveryTime[];
   logo?: Attachment;
+  dark_logo?: Attachment;
   taxClass?: string;
   shippingClass?: string;
   seo?: SeoSettings;
@@ -1365,6 +1366,7 @@ export interface SettingsOptionsInput {
   maximumQuestionLimit?: number;
   deliveryTime?: DeliveryTimeInput[];
   logo?: AttachmentInput;
+  dark_logo?: AttachmentInput;
   taxClass?: string;
   shippingClass?: string;
   seo?: SeoSettingsInput;

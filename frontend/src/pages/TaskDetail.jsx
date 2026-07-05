@@ -5,20 +5,21 @@ import * as Lucide from "lucide-react";
 import { api, formatApiError } from "../api";
 import { useAuth } from "../auth";
 import { useLang } from "../i18n";
-import { TopBar, Badge, timeAgo } from "../components/Layout";
-import { PhotoCarousel } from "../components/PhotoCarousel";
+import { TopBar, Badge, timeAgo, SeoHead } from "../components/Layout";
+import { formatBudget, stripHtml } from "../components/TaskCard";
 
 function CustomerCard({ customer, t }) {
   if (!customer) return null;
   const last = customer.last_seen ? timeAgo(customer.last_seen, t) : "";
+  const label = customer.name ? `Заказчик ${customer.name}` : "Заказчик";
   return (
     <div className="flex items-center gap-3 py-3 border-y border-neutral-100" data-testid="customer-card">
       <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center font-bold text-white text-lg">
         {customer.name.charAt(0).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold truncate">{customer.name}</p>
-        <p className="text-xs text-neutral-400">{t("online_ago")} {last}</p>
+        <p className="text-sm font-normal text-neutral-600 truncate">{label}</p>
+        {last ? <p className="text-xs text-neutral-400 mt-0.5">{t("online_ago")} {last}</p> : null}
       </div>
       <Lucide.ChevronRight size={18} className="text-neutral-300" />
     </div>
@@ -113,11 +114,17 @@ export default function TaskDetail() {
     }
   };
 
+  const isClosed = task.is_closed || ["cancelled", "closed", "done"].includes(task.status);
+  const budgetLabel = formatBudget(task);
   const statusVariant = { open: "default", in_progress: "warning", completed: "success" }[task.status] || "muted";
   const shortOrderId = task.id.replace(/-/g, "").slice(0, 8).toUpperCase();
 
   return (
     <div className="flex flex-col h-full bg-white" data-testid="task-detail-page">
+      <SeoHead
+        title={`${task.title} — Treabo`}
+        description={stripHtml(task.description)?.slice(0, 160) || "Детали задания на Treabo"}
+      />
       <TopBar
         title={isSpecialist ? task.title : ""}
         right={isOwner && task.status === "open" ? (
@@ -190,7 +197,7 @@ export default function TaskDetail() {
         {/* Description */}
         <div className="px-5 mb-5">
           <h3 className="text-xl font-extrabold mb-3">{t("description_label")}</h3>
-          <p className="text-base text-neutral-800 whitespace-pre-line leading-relaxed">{task.description}</p>
+          <p className="text-base text-neutral-800 whitespace-pre-line leading-relaxed">{stripHtml(task.description)}</p>
         </div>
 
         {/* Meta block */}
@@ -198,7 +205,7 @@ export default function TaskDetail() {
           <div className="card-light bg-lavender-50 border-0 flex flex-col gap-3">
             <div className="flex items-center gap-2 mb-1">
               <Badge variant={statusVariant}>{t(task.status)}</Badge>
-              {task.budget && <Badge>до {task.budget.toLocaleString()} {t("rub")}</Badge>}
+              {budgetLabel && <Badge>{budgetLabel}</Badge>}
             </div>
             {cat && (
               <div className="flex items-center gap-2 text-sm">
@@ -218,6 +225,19 @@ export default function TaskDetail() {
             )}
           </div>
         </div>
+
+        {task.lat != null && task.lng != null && (
+          <div className="px-5 mt-6">
+            <h3 className="text-xl font-extrabold mb-3">{t("map_view")}</h3>
+            <div className="rounded-2xl overflow-hidden border border-neutral-100">
+              <img
+                alt="Карта задания"
+                className="w-full h-48 object-cover"
+                src={`https://static-maps.yandex.ru/v1?ll=${task.lng},${task.lat}&z=14&size=650,320&l=map&pt=${task.lng},${task.lat},pm2rdm&lang=ru_RU`}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Owner: applications */}
         {isOwner && (
@@ -287,7 +307,7 @@ export default function TaskDetail() {
       </div>
 
       {/* Sticky CTA bar */}
-      {isSpecialist && task.status === "open" && (
+      {isSpecialist && task.status === "open" && !isClosed && (
         <div className="absolute bottom-0 left-0 right-0 px-5 py-4 bg-white border-t border-neutral-100 z-20">
           {!hasApplied && !showApply && (
             <button
@@ -317,12 +337,19 @@ export default function TaskDetail() {
           {hasApplied && (
             <button
               data-testid="open-chat-btn"
-              className="btn-secondary"
-              onClick={() => navigate("/chats")}
+              className="btn-secondary bg-neutral-600 text-white border-0"
+              disabled
             >
-              <Lucide.MessageCircle size={18} className="mr-2" /> {t("chats")}
+              Вы откликнулись
             </button>
           )}
+        </div>
+      )}
+      {isSpecialist && isClosed && (
+        <div className="absolute bottom-0 left-0 right-0 px-5 py-4 bg-white border-t border-neutral-100 z-20">
+          <button className="btn-secondary bg-neutral-900 text-white border-0 w-full" disabled>
+            Закрыто
+          </button>
         </div>
       )}
     </div>

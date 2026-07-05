@@ -85,6 +85,11 @@ export default function ChatListScreen() {
     useCallback(() => {
       loadChats();
       heartbeat().catch(() => undefined);
+      const timer = setInterval(() => {
+        loadChats();
+        heartbeat().catch(() => undefined);
+      }, 30000);
+      return () => clearInterval(timer);
     }, [heartbeat, loadChats])
   );
 

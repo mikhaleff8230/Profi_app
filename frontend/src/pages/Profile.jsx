@@ -161,8 +161,8 @@ export default function Profile() {
 
         {isSpecialist && (
           <div className="bg-lavender-100 self-start rounded-full px-3 py-1.5 flex items-center gap-2 text-sm font-semibold">
-            <Lucide.CheckCircle2 size={14} />
-            {t("verified_passport")}
+            <Lucide.Shield size={14} />
+            Верификация паспорта — только в мобильном приложении мастера
           </div>
         )}
 

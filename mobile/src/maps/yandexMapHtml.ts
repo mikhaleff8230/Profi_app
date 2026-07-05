@@ -214,6 +214,10 @@ export function toYandexPoints<T extends {
   title: string;
   description?: string | null;
   budget?: number | null;
+  budget_type?: string | null;
+  budget_min?: number | null;
+  budget_max?: number | null;
+  budget_label?: string | null;
   city?: string | null;
   address?: string | null;
   category?: string | number | null;
@@ -242,10 +246,16 @@ export function toYandexPoints<T extends {
         photoUrl = fileUrlFn(firstPhoto.path);
       }
 
-      const priceLabel =
-        task.budget != null && task.budget > 0
-          ? `от ${new Intl.NumberFormat("ru-RU").format(task.budget)} ₽`
-          : "Цена договорная";
+      let priceLabel = task.budget_label || "Цена договорная";
+      if (!task.budget_label && task.budget_type === "range") {
+        const min = task.budget_min != null ? Number(task.budget_min) : null;
+        const max = task.budget_max != null ? Number(task.budget_max) : null;
+        if (min != null && max != null) priceLabel = `от ${new Intl.NumberFormat("ru-RU").format(min)} до ${new Intl.NumberFormat("ru-RU").format(max)} ₽`;
+        else if (min != null) priceLabel = `от ${new Intl.NumberFormat("ru-RU").format(min)} ₽`;
+        else if (max != null) priceLabel = `до ${new Intl.NumberFormat("ru-RU").format(max)} ₽`;
+      } else if (!task.budget_label && task.budget != null && task.budget > 0) {
+        priceLabel = `от ${new Intl.NumberFormat("ru-RU").format(task.budget)} ₽`;
+      }
 
       return {
         id: String(task.id),

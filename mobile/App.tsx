@@ -6,23 +6,26 @@ import { LangProvider } from "./src/context/LangContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { DatabaseProvider } from "./src/providers/DatabaseProvider";
 import { KeyboardRoot } from "./src/components/KeyboardRoot";
+import { AppErrorBoundary } from "./src/components/AppErrorBoundary";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <KeyboardRoot>
-          <DatabaseProvider>
-            <LangProvider>
-              <AuthProvider>
-                <RootNavigator />
-                <StatusBar style="dark" />
-              </AuthProvider>
-            </LangProvider>
-          </DatabaseProvider>
-        </KeyboardRoot>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <KeyboardRoot>
+            <DatabaseProvider>
+              <LangProvider>
+                <AuthProvider>
+                  <RootNavigator />
+                  <StatusBar style="dark" />
+                </AuthProvider>
+              </LangProvider>
+            </DatabaseProvider>
+          </KeyboardRoot>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }

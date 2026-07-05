@@ -1,7 +1,48 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Home, ClipboardList, MessageCircle, User, ChevronLeft } from "lucide-react";
 import { useLang } from "../i18n";
 import { useAuth } from "../auth";
+import { api } from "../api";
+
+export function SeoHead({ title, description, image, url }) {
+  useEffect(() => {
+    if (title) document.title = title;
+    const setMeta = (name, content, property = false) => {
+      if (!content) return;
+      const attr = property ? "property" : "name";
+      let el = document.querySelector(`meta[${attr}="${name}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+    setMeta("description", description);
+    setMeta("og:title", title, true);
+    setMeta("og:description", description, true);
+    setMeta("og:url", url || window.location.href, true);
+    if (image) setMeta("og:image", image, true);
+  }, [title, description, image, url]);
+  return null;
+}
+
+export function SiteLogo({ className = "h-10 w-auto max-w-[160px] object-contain", fallbackClassName = "text-2xl font-extrabold tracking-tight" }) {
+  const [logoUrl, setLogoUrl] = useState(null);
+
+  useEffect(() => {
+    api.get("/site-settings")
+      .then((r) => setLogoUrl(r.data?.logo_url || null))
+      .catch(() => setLogoUrl(null));
+  }, []);
+
+  if (logoUrl) {
+    return <img src={logoUrl} alt="Treabo" className={className} />;
+  }
+
+  return <span className={fallbackClassName}>Treabo</span>;
+}
 
 export function AppShell({ children }) {
   const location = useLocation();

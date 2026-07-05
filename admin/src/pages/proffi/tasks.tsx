@@ -24,7 +24,10 @@ type TaskForm = {
   address: string;
   lat: string;
   lng: string;
+  budget_type: 'fixed' | 'range';
   budget: string;
+  budget_min: string;
+  budget_max: string;
   response_price_mdl: string;
   deadline: string;
   customer_id: string;
@@ -42,7 +45,10 @@ const emptyTaskForm: TaskForm = {
   address: '',
   lat: '',
   lng: '',
+  budget_type: 'fixed',
   budget: '',
+  budget_min: '',
+  budget_max: '',
   response_price_mdl: '15',
   deadline: 'По договоренности',
   customer_id: '',
@@ -106,7 +112,10 @@ export default function ProffiTasks() {
       address: task.address || '',
       lat: task.lat != null ? String(task.lat) : '',
       lng: task.lng != null ? String(task.lng) : '',
+      budget_type: task.budget_type === 'range' ? 'range' : 'fixed',
       budget: task.budget ? String(task.budget) : '',
+      budget_min: task.budget_min != null ? String(task.budget_min) : '',
+      budget_max: task.budget_max != null ? String(task.budget_max) : '',
       response_price_mdl: task.response_price_mdl ? String(task.response_price_mdl) : '15',
       deadline: task.deadline || 'По договоренности',
       customer_id: task.customer_id || '',
@@ -168,12 +177,19 @@ export default function ProffiTasks() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (form.address.trim() && (!form.lat || !form.lng)) {
+      setError('Укажите адрес через подсказку Яндекса или выберите точку на карте, чтобы сохранить координаты lat/lng.');
+      return;
+    }
     setSaving(true);
     setError('');
     const payload = {
       ...form,
       customer_id: Number(form.customer_id),
-      budget: form.budget ? Number(form.budget) : null,
+      budget_type: form.budget_type,
+      budget: form.budget_type === 'fixed' && form.budget ? Number(form.budget) : null,
+      budget_min: form.budget_type === 'range' && form.budget_min ? Number(form.budget_min) : null,
+      budget_max: form.budget_type === 'range' && form.budget_max ? Number(form.budget_max) : null,
       response_price_mdl: form.response_price_mdl ? Number(form.response_price_mdl) : 15,
       lat: form.lat ? Number(form.lat) : null,
       lng: form.lng ? Number(form.lng) : null,
@@ -273,12 +289,37 @@ export default function ProffiTasks() {
             </div>
           ) : null}
         </div>
-        <input
+        <select
           className="rounded border border-border-200 px-3 py-2"
-          placeholder="Бюджет, ₽"
-          value={form.budget}
-          onChange={(e) => setForm({ ...form, budget: e.target.value })}
-        />
+          value={form.budget_type}
+          onChange={(e) => setForm({ ...form, budget_type: e.target.value as TaskForm['budget_type'] })}
+        >
+          <option value="fixed">Бюджет: точная сумма</option>
+          <option value="range">Бюджет: интервал</option>
+        </select>
+        {form.budget_type === 'fixed' ? (
+          <input
+            className="rounded border border-border-200 px-3 py-2"
+            placeholder="Бюджет, ₽"
+            value={form.budget}
+            onChange={(e) => setForm({ ...form, budget: e.target.value })}
+          />
+        ) : (
+          <>
+            <input
+              className="rounded border border-border-200 px-3 py-2"
+              placeholder="Бюджет от, ₽"
+              value={form.budget_min}
+              onChange={(e) => setForm({ ...form, budget_min: e.target.value })}
+            />
+            <input
+              className="rounded border border-border-200 px-3 py-2"
+              placeholder="Бюджет до, ₽"
+              value={form.budget_max}
+              onChange={(e) => setForm({ ...form, budget_max: e.target.value })}
+            />
+          </>
+        )}
         <input
           className="rounded border border-border-200 px-3 py-2"
           placeholder="Цена отклика, ₽"

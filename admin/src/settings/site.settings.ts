@@ -68,6 +68,18 @@ export const siteSettings = {
         permissions: adminOnly,
       },
       {
+        href: Routes.proffi.reviews,
+        label: 'Treabo отзывы',
+        icon: 'ReviewIcon',
+        permissions: adminOnly,
+      },
+      {
+        href: Routes.proffi.verifications,
+        label: 'Treabo верификация',
+        icon: 'UsersIcon',
+        permissions: adminOnly,
+      },
+      {
         href: Routes.proffi.chats,
         label: 'Treabo чаты',
         icon: 'ChatIcon',
@@ -75,8 +87,20 @@ export const siteSettings = {
       },
       {
         href: Routes.proffi.categories,
-        label: 'Treabo категории',
+        label: 'Категории',
         icon: 'CategoriesIcon',
+        permissions: adminOnly,
+      },
+      {
+        href: Routes.proffi.works,
+        label: 'Работы',
+        icon: 'CategoriesIcon',
+        permissions: adminOnly,
+      },
+      {
+        href: Routes.proffi.questions,
+        label: 'Вопросы',
+        icon: 'QuestionIcon',
         permissions: adminOnly,
       },
       {
@@ -92,8 +116,14 @@ export const siteSettings = {
         permissions: adminOnly,
       },
       {
+        href: Routes.proffi.matchingSettings,
+        label: 'Treabo подбор мастеров',
+        icon: 'UsersIcon',
+        permissions: adminOnly,
+      },
+      {
         href: Routes.proffi.aiChat,
-        label: 'AI чат',
+        label: 'AI инструкции',
         icon: 'QuestionIcon',
         permissions: adminOnly,
       },

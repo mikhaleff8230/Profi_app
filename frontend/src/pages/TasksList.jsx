@@ -2,11 +2,24 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import * as Lucide from "lucide-react";
 import { api, API } from "../api";
+import { useAuth } from "../auth";
 import { useLang } from "../i18n";
 import { useGeo } from "../geo";
-import { Empty } from "../components/Layout";
+import { Empty, SeoHead } from "../components/Layout";
 import { TaskCard } from "../components/TaskCard";
 import FiltersSheet from "../components/FiltersSheet";
+
+function cityInLocative(city) {
+  if (!city) return "";
+  const map = {
+    Москва: "Москве",
+    "Санкт-Петербург": "Санкт-Петербурге",
+    Майкоп: "Майкопе",
+    Казань: "Казани",
+    "Нижний Новгород": "Нижнем Новгороде",
+  };
+  return map[city] || city;
+}
 
 function StoryTile({ s, lang }) {
   const Icon = Lucide[s.icon] || Lucide.Sparkles;
@@ -35,6 +48,8 @@ export default function TasksList() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const { user } = useAuth();
 
   const category = params.get("category") || "";
   const q = params.get("q") || "";
@@ -56,17 +71,38 @@ export default function TasksList() {
       queryParams.set("lng", coords.lng);
       queryParams.set("sort", "distance");
     }
+    if (favoritesOnly) queryParams.set("favorites", "1");
     api
       .get(`/tasks?${queryParams.toString()}`)
       .then((r) => setTasks(r.data))
       .finally(() => setLoading(false));
-  }, [category, q, city, coords]);
+  }, [category, q, city, coords, favoritesOnly]);
+
+  const toggleFavorite = async (task) => {
+    if (!user) return;
+    try {
+      if (task.is_favorite) {
+        await api.delete(`/favorites/${task.id}`);
+      } else {
+        await api.post(`/favorites/${task.id}`);
+      }
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, is_favorite: !t.is_favorite } : t)));
+    } catch { /* no-op */ }
+  };
 
   const currentCat = categories.find((c) => c.id === category);
   const filterCount = [category, q, city].filter(Boolean).length;
+  const seoTitle = currentCat
+    ? `${currentCat.name_ru} — задания Treabo${city ? ` в ${cityInLocative(city)}` : ""}`
+    : q
+      ? `Поиск «${q}» — задания Treabo`
+      : city
+        ? `Задания в ${cityInLocative(city)} — Treabo`
+        : "Задания для мастеров — Treabo";
 
   return (
     <div className="scroll-area bg-white flex flex-col" data-testid="tasks-list-page">
+      <SeoHead title={seoTitle} description="Актуальные заказы от клиентов: бюджет, адрес, категория и срок выполнения." />
       <div className="px-5 pt-5 pb-2 sticky top-0 bg-white z-30 flex flex-col gap-3">
         {/* Top toggle: Список / Карта */}
         <div className="flex items-center justify-between gap-3">
@@ -102,6 +138,15 @@ export default function TasksList() {
               className="bg-transparent flex-1 outline-none text-sm"
             />
           </div>
+          {user?.role === "specialist" && (
+            <button
+              data-testid="favorites-filter-btn"
+              onClick={() => setFavoritesOnly((v) => !v)}
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${favoritesOnly ? "bg-black text-white" : "bg-lavender-50 hover:bg-lavender-100"}`}
+            >
+              <Lucide.Heart size={18} className={favoritesOnly ? "fill-white" : ""} />
+            </button>
+          )}
           <button
             data-testid="open-filters-btn"
             onClick={() => setShowFilters(true)}
@@ -128,6 +173,12 @@ export default function TasksList() {
         )}
       </div>
 
+      <div className="px-5 pb-1">
+        <h1 className="text-xl font-extrabold tracking-tight">
+          {currentCat ? currentCat.name_ru : city ? `Задания в ${city}` : "Все задания"}
+        </h1>
+      </div>
+
       {/* Stories carousel */}
       <div className="flex gap-2 px-5 py-3 overflow-x-auto" data-testid="stories-carousel">
         {stories.map((s) => <StoryTile key={s.id} s={s} lang={lang} />)}
@@ -151,6 +202,9 @@ export default function TasksList() {
             task={task}
             categories={categories}
             onClick={() => navigate(`/tasks/${task.id}`)}
+            onFavorite={user?.role === "specialist" ? toggleFavorite : undefined}
+            showLink
+            dimmed={task.has_applied}
           />
         ))}
       </div>

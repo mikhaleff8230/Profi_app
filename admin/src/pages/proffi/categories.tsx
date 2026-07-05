@@ -6,15 +6,17 @@ import {
   postProffiAdmin,
   putProffiAdmin,
   TreaboCategory,
+  uploadProffiAdminFile,
 } from '@/data/proffi-admin';
 import { adminOnly } from '@/utils/auth-utils';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 
 const emptyForm = {
   id: '',
   parent_id: '',
   icon: 'MoreHorizontal',
+  image: '',
   name_ru: '',
   slug: '',
   is_active: true,
@@ -31,6 +33,7 @@ export default function TreaboCategories() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const sortedRows = useMemo(
     () =>
@@ -56,6 +59,7 @@ export default function TreaboCategories() {
       id: row.id,
       parent_id: row.parent_id || '',
       icon: row.icon || 'MoreHorizontal',
+      image: row.image || '',
       name_ru: row.name_ru || '',
       slug: row.slug || row.id,
       is_active: row.is_active ?? true,
@@ -101,6 +105,21 @@ export default function TreaboCategories() {
     await deleteProffiAdmin(`/api/admin/categories/${encodeURIComponent(id)}`);
     if (editingId === id) reset();
     load();
+  }
+
+  async function onImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const upload = await uploadProffiAdminFile(file, 'categories');
+      setForm((prev) => ({ ...prev, image: upload.url || upload.path }));
+    } catch (e: any) {
+      setError(e.response?.data?.detail || e.message);
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
   }
 
   return (
@@ -159,6 +178,16 @@ export default function TreaboCategories() {
           value={form.slug}
           onChange={(e) => setForm({ ...form, slug: e.target.value })}
         />
+        <input
+          className="rounded border border-border-200 px-3 py-2 md:col-span-2"
+          placeholder="URL изображения"
+          value={form.image}
+          onChange={(e) => setForm({ ...form, image: e.target.value })}
+        />
+        <label className="flex items-center gap-2 rounded border border-border-200 px-3 py-2 md:col-span-2">
+          <input type="file" accept="image/*" onChange={onImageUpload} disabled={uploading} />
+          {uploading ? 'Загрузка...' : 'Загрузить фото'}
+        </label>
         <label className="flex items-center gap-2 rounded border border-border-200 px-3 py-2">
           <input
             type="checkbox"
@@ -185,6 +214,7 @@ export default function TreaboCategories() {
               <th className="px-4 py-3">Родитель</th>
               <th className="px-4 py-3">Название</th>
               <th className="px-4 py-3">Slug</th>
+              <th className="px-4 py-3">Фото</th>
               <th className="px-4 py-3">Активна</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -198,6 +228,7 @@ export default function TreaboCategories() {
                   {row.name_ru}
                 </td>
                 <td className="px-4 py-3">{row.slug || '-'}</td>
+                <td className="px-4 py-3">{row.image ? 'Да' : '-'}</td>
                 <td className="px-4 py-3">{row.is_active === false ? 'Нет' : 'Да'}</td>
                 <td className="px-4 py-3 text-right">
                   <button onClick={() => edit(row)} className="me-4 text-accent">
@@ -211,7 +242,7 @@ export default function TreaboCategories() {
             ))}
             {!sortedRows.length ? (
               <tr>
-                <td className="px-4 py-8 text-center text-body" colSpan={6}>
+                <td className="px-4 py-8 text-center text-body" colSpan={7}>
                   Категорий пока нет
                 </td>
               </tr>

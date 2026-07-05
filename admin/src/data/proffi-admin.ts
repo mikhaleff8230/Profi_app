@@ -77,6 +77,7 @@ export type TreaboCategory = {
   id: string;
   parent_id?: string | null;
   icon?: string | null;
+  image?: string | null;
   name_ru: string;
   name_ro: string;
   slug?: string | null;
@@ -91,9 +92,26 @@ export type TreaboFilter = {
   value: string;
 };
 
+export type TreaboMatchingSettings = {
+  id?: number;
+  category_weight: number;
+  work_weight: number;
+  rating_weight: number;
+  reviews_weight: number;
+  online_weight: number;
+  profile_relevance_weight: number;
+  min_rating: number;
+  min_reviews: number;
+  max_recommended: number;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type TreaboResponseSettings = {
   id?: number;
   free_daily_limit: number;
+  free_per_task_limit?: number;
   default_response_price_mdl: number;
   manual_deposit_amount_mdl: number;
   manual_deposit_url?: string | null;
@@ -131,6 +149,9 @@ export type ProffiTask = {
   lat?: number | null;
   lng?: number | null;
   budget?: number | null;
+  budget_type?: string | null;
+  budget_min?: number | null;
+  budget_max?: number | null;
   response_price_mdl?: number | null;
   deadline?: string | null;
   photos?: string[];
@@ -158,6 +179,34 @@ export type ProffiApplication = {
   chat_id?: string | null;
   message?: string | null;
   created_at?: string | null;
+};
+
+export type ProffiReview = {
+  id: string;
+  task_id?: string | null;
+  task_title?: string | null;
+  specialist_id: string;
+  specialist_name?: string | null;
+  customer_id: string;
+  customer_name?: string | null;
+  rating: number;
+  comment?: string | null;
+  photos?: string[];
+  created_at?: string | null;
+};
+
+export type ProffiVerification = {
+  id: string;
+  user_id: string;
+  user_name?: string | null;
+  user_phone?: string | null;
+  status: string;
+  passport_main_photo?: string | null;
+  passport_registration_photo?: string | null;
+  passport_selfie_photo?: string | null;
+  moderator_comment?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type ProffiChat = {
@@ -207,6 +256,70 @@ export type AiChatKnowledgeInput = {
   slug?: string | null;
   content?: string | null;
   payload?: Record<string, any> | null;
+  sort_order?: number;
+  is_active?: boolean;
+};
+
+export type ProffiWork = {
+  id: number;
+  category_id?: string | null;
+  title: string;
+  slug?: string | null;
+  aliases?: string[] | null;
+  description?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  category?: TreaboCategory | null;
+};
+
+export type ProffiWorkInput = {
+  category_id?: string | null;
+  title: string;
+  slug?: string | null;
+  aliases?: string[] | null;
+  description?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+};
+
+export type ProffiWorkQuestionType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'yesno'
+  | 'select'
+  | 'multiselect'
+  | 'photo';
+
+export type ProffiWorkQuestion = {
+  id: number;
+  work_id: number;
+  question: string;
+  field_key?: string | null;
+  type: ProffiWorkQuestionType;
+  options?: string[] | null;
+  placeholder?: string | null;
+  help_text?: string | null;
+  is_required?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  work?: ProffiWork | null;
+  category_id?: string | null;
+};
+
+export type ProffiWorkQuestionInput = {
+  work_id: number;
+  question: string;
+  field_key?: string | null;
+  type: ProffiWorkQuestionType;
+  options?: string[] | null;
+  placeholder?: string | null;
+  help_text?: string | null;
+  is_required?: boolean;
   sort_order?: number;
   is_active?: boolean;
 };

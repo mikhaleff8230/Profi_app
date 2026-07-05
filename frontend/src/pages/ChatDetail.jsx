@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import * as Lucide from "lucide-react";
 import { api, formatApiError } from "../api";
+import { fileUrl } from "../components/TaskCard";
 import { useAuth } from "../auth";
 import { useLang } from "../i18n";
 import { getEcho, leaveProffiChat } from "../realtime";
@@ -13,6 +14,11 @@ function avatarColor(name = "") {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xfffffff;
   return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+
+function messageAttachmentUrl(m) {
+  const meta = m.metadata || {};
+  return fileUrl(meta.url || meta.path || meta.original);
 }
 
 function messageTime(iso) {
@@ -146,6 +152,7 @@ export default function ChatDetail() {
   const otherIsCustomer = chat ? user?.id !== chat.customer_id : false;
   const otherName = chat ? (user?.id === chat.customer_id ? chat.specialist_name : chat.customer_name) : "";
   const status = useMemo(() => (chat ? presenceText(chat, otherIsCustomer) : ""), [chat, otherIsCustomer]);
+  const otherIsOnline = chat?.other_is_online;
 
   return (
     <div className="flex flex-col h-full bg-white" data-testid="chat-detail-page">
@@ -162,13 +169,13 @@ export default function ChatDetail() {
 
           <div className={`relative w-11 h-11 rounded-full ${avatarColor(otherName)} flex items-center justify-center font-extrabold text-white text-lg shrink-0`}>
             {otherName?.charAt(0)?.toUpperCase() || "?"}
-            <span className="absolute right-0 bottom-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
+            <span className={`absolute right-0 bottom-0 w-3.5 h-3.5 rounded-full border-2 border-white ${otherIsOnline ? "bg-emerald-500" : "bg-neutral-300"}`} />
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-extrabold truncate">{otherName || "Чат"}</h2>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className={`w-2 h-2 rounded-full shrink-0 ${otherIsOnline ? "bg-emerald-500" : "bg-neutral-300"}`} />
             </div>
             <p className="text-xs text-neutral-500 truncate">{status}{chat?.task_title ? ` · ${chat.task_title}` : ""}</p>
           </div>
@@ -211,7 +218,17 @@ export default function ChatDetail() {
                       : "bg-neutral-100 text-black rounded-bl-md"
                   }`}
                 >
-                  <p className="whitespace-pre-line break-words">{m.text}</p>
+                  {m.type === "image" && messageAttachmentUrl(m) ? (
+                    <a href={messageAttachmentUrl(m)} target="_blank" rel="noreferrer">
+                      <img src={messageAttachmentUrl(m)} alt="" className="max-w-[220px] rounded-xl mb-1 object-cover" />
+                    </a>
+                  ) : null}
+                  {m.text && m.type !== "image" ? (
+                    <p className="whitespace-pre-line break-words">{m.text}</p>
+                  ) : null}
+                  {m.type === "image" && !messageAttachmentUrl(m) ? (
+                    <p className="text-sm text-neutral-500">Фото недоступно</p>
+                  ) : null}
                 </div>
                 <div className={`mt-1 flex items-center gap-1 text-[11px] text-neutral-400 ${mine ? "pr-1" : "pl-1"}`}>
                   {mine && <Lucide.CheckCheck size={13} className="text-sky-500" />}

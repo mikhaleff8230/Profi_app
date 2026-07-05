@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import { API_BASE, apiFetch } from "../../src/api";
+import { apiFetch } from "../../src/api";
 import { useAuth } from "../../src/context/AuthContext";
 import { useLang } from "../../src/context/LangContext";
 import { colors, radii, spacing, typography } from "../../src/theme";
@@ -27,20 +26,24 @@ import type { AuthStackParamList } from "../../src/navigation/types";
 type Nav = NativeStackNavigationProp<AuthStackParamList>;
 type R = RouteProp<AuthStackParamList, "PhoneEntry">;
 
+const SHOW_OAUTH = false;
+
 function isEmailOk(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function displayNameFromEmail(email: string): string {
   const local = email.split("@")[0]?.trim() || "";
-  return local ? local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "User";
+  return local ? local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Мастер";
 }
 
-function oauthReturnUrl(): string {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  return "proffi://auth";
+function isOtpSent(data: unknown): data is { status: "otp_sent"; otp_id: string } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    (data as { status?: string }).status === "otp_sent" &&
+    typeof (data as { otp_id?: string }).otp_id === "string"
+  );
 }
 
 export default function PhoneAuthScreen() {
@@ -49,10 +52,13 @@ export default function PhoneAuthScreen() {
   const route = useRoute<R>();
   const { t } = useLang();
   const { signIn } = useAuth();
-  const { role } = route.params;
+  const role = route.params?.role ?? "specialist";
   const [national, setNational] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpId, setOtpId] = useState<string | null>(null);
+  const [otpStep, setOtpStep] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const display = useMemo(() => formatRuNationalDisplay(national), [national]);
@@ -61,7 +67,29 @@ export default function PhoneAuthScreen() {
   const passwordValid = password.length >= 4;
   const apiPhone = useMemo(() => (phoneValid ? toApiPhoneFromNational10(national) : ""), [national, phoneValid]);
   const canSubmit = phoneValid && emailValid && passwordValid;
-  const roleTitle = role === "specialist" ? "Регистрация мастера" : "Регистрация заказчика";
+  const canVerify = otpCode.trim().length >= 4;
+
+  const registerFallback = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    const data = await apiFetch("/auth/register-phone", {
+      method: "POST",
+      body: JSON.stringify({
+        phone: apiPhone,
+        email: cleanEmail,
+        password,
+        name: displayNameFromEmail(cleanEmail),
+        role,
+      }),
+      auth: false,
+    });
+    if (isOtpSent(data)) {
+      setOtpId(data.otp_id);
+      setOtpStep(true);
+      Alert.alert("Код отправлен", "Введите код из SMS");
+      return;
+    }
+    await signIn(data.token, data.user);
+  };
 
   const onSubmit = async () => {
     if (!phoneValid || !apiPhone) {
@@ -79,14 +107,58 @@ export default function PhoneAuthScreen() {
     setBusy(true);
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const data = await apiFetch("/auth/register-phone", {
+      const payload = {
+        phone: apiPhone,
+        purpose: "register" as const,
+        password,
+        name: displayNameFromEmail(cleanEmail),
+        role,
+        email: cleanEmail,
+      };
+      try {
+        const data = await apiFetch("/auth/phone/send-otp", {
+          method: "POST",
+          body: JSON.stringify(payload),
+          auth: false,
+        });
+        if (isOtpSent(data)) {
+          setOtpId(data.otp_id);
+          setOtpStep(true);
+          Alert.alert("Код отправлен", "Введите код из SMS");
+          return;
+        }
+        if (data?.token) {
+          await signIn(data.token, data.user);
+          return;
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!/404|disabled/i.test(msg)) {
+          throw e;
+        }
+      }
+      await registerFallback();
+    } catch (e: unknown) {
+      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onVerifyOtp = async () => {
+    if (!otpId || !apiPhone) return;
+    if (!canVerify) {
+      Alert.alert("Ошибка", "Введите код из SMS");
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = await apiFetch("/auth/phone/verify-otp", {
         method: "POST",
         body: JSON.stringify({
           phone: apiPhone,
-          email: cleanEmail,
-          password,
-          name: displayNameFromEmail(cleanEmail),
-          role,
+          otp_id: otpId,
+          code: otpCode.trim(),
         }),
         auth: false,
       });
@@ -95,19 +167,6 @@ export default function PhoneAuthScreen() {
       Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
-    }
-  };
-
-  const onOAuth = async (provider: "yandex" | "google") => {
-    const params = new URLSearchParams({
-      role,
-      return_url: oauthReturnUrl(),
-    });
-    const url = `${API_BASE}/api/proffi/auth/oauth/${provider}/redirect?${params.toString()}`;
-    try {
-      await Linking.openURL(url);
-    } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -122,76 +181,101 @@ export default function PhoneAuthScreen() {
         <TouchableOpacity style={styles.backWrap} onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={22} color={colors.black} />
         </TouchableOpacity>
-        <Text style={styles.title}>{roleTitle}</Text>
-        <Text style={styles.sub}>Телефон не проверяем. Он нужен для связи в заказах.</Text>
+        <Text style={styles.title}>Регистрация мастера</Text>
+        <Text style={styles.sub}>
+          {otpStep ? "Введите код из SMS для подтверждения телефона" : "Подтвердим телефон кодом из SMS"}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <View style={styles.phoneRow}>
-          <View style={styles.countryPill}>
-            <Text style={styles.flag}>🇷🇺</Text>
-            <Text style={styles.prefix}>+7</Text>
-          </View>
-          <TextInput
-            style={styles.phoneInput}
-            accessibilityLabel="Телефон регистрации"
-            testID="register-phone"
-            placeholder="903 000 00 00"
-            placeholderTextColor={colors.neutral400}
-            keyboardType="phone-pad"
-            value={display}
-            onChangeText={onChangeNational}
-          />
-        </View>
+        {!otpStep ? (
+          <>
+            <View style={styles.phoneRow}>
+              <View style={styles.countryPill}>
+                <Text style={styles.flag}>🇷🇺</Text>
+                <Text style={styles.prefix}>+7</Text>
+              </View>
+              <TextInput
+                style={styles.phoneInput}
+                accessibilityLabel="Телефон регистрации"
+                testID="register-phone"
+                placeholder="903 000 00 00"
+                placeholderTextColor={colors.neutral400}
+                keyboardType="phone-pad"
+                value={display}
+                onChangeText={onChangeNational}
+              />
+            </View>
 
-        <TextInput
-          style={styles.input}
-          accessibilityLabel="Email регистрации"
-          testID="register-email"
-          placeholder="email@example.com"
-          placeholderTextColor={colors.neutral400}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
+            <TextInput
+              style={styles.input}
+              accessibilityLabel="Email регистрации"
+              testID="register-email"
+              placeholder="email@example.com"
+              placeholderTextColor={colors.neutral400}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
 
-        <TextInput
-          style={styles.input}
-          accessibilityLabel="Пароль регистрации"
-          testID="register-password"
-          placeholder={t("auth_password_placeholder")}
-          placeholderTextColor={colors.neutral400}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+            <TextInput
+              style={styles.input}
+              accessibilityLabel="Пароль регистрации"
+              testID="register-password"
+              placeholder={t("auth_password_placeholder")}
+              placeholderTextColor={colors.neutral400}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
 
-        <TouchableOpacity
-          style={[styles.cta, !canSubmit && styles.ctaDisabled]}
-          accessibilityLabel="Зарегистрироваться"
-          testID="register-submit"
-          onPress={onSubmit}
-          disabled={!canSubmit || busy}
-          activeOpacity={0.9}
-        >
-          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>Зарегистрироваться</Text>}
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cta, !canSubmit && styles.ctaDisabled]}
+              accessibilityLabel="Зарегистрироваться"
+              testID="register-submit"
+              onPress={onSubmit}
+              disabled={!canSubmit || busy}
+              activeOpacity={0.9}
+            >
+              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>Получить код</Text>}
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TextInput
+              style={styles.input}
+              accessibilityLabel="Код из SMS"
+              placeholder="Код из SMS"
+              placeholderTextColor={colors.neutral400}
+              keyboardType="number-pad"
+              value={otpCode}
+              onChangeText={setOtpCode}
+              maxLength={8}
+            />
+            <TouchableOpacity
+              style={[styles.cta, !canVerify && styles.ctaDisabled]}
+              onPress={onVerifyOtp}
+              disabled={!canVerify || busy}
+              activeOpacity={0.9}
+            >
+              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>Подтвердить</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setOtpStep(false)}>
+              <Text style={styles.loginLink}>Изменить данные</Text>
+            </TouchableOpacity>
+          </>
+        )}
 
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>или</Text>
-          <View style={styles.divider} />
-        </View>
-
-        <TouchableOpacity style={styles.socialBtn} onPress={() => onOAuth("yandex")}>
-          <Text style={styles.socialMark}>Я</Text>
-          <Text style={styles.socialText}>Продолжить через Яндекс</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialBtn} onPress={() => onOAuth("google")}>
-          <Text style={styles.socialMark}>G</Text>
-          <Text style={styles.socialText}>Продолжить через Google</Text>
-        </TouchableOpacity>
+        {SHOW_OAUTH && (
+          <>
+            <View style={styles.dividerRow}>
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>или</Text>
+              <View style={styles.divider} />
+            </View>
+          </>
+        )}
 
         <TouchableOpacity onPress={() => navigation.navigate("Login")}>
           <Text style={styles.loginLink}>{t("back_to_login")}</Text>
@@ -251,16 +335,5 @@ const styles = StyleSheet.create({
   dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 6 },
   divider: { flex: 1, height: 1, backgroundColor: colors.neutral100 },
   dividerText: { color: colors.neutral500, fontSize: 13 },
-  socialBtn: {
-    minHeight: 52,
-    borderRadius: radii.lg,
-    backgroundColor: colors.neutral100,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  socialMark: { width: 24, textAlign: "center", fontSize: 18, fontWeight: "900", color: colors.black },
-  socialText: { fontSize: 15, fontWeight: "700", color: colors.black },
   loginLink: { marginTop: 8, textAlign: "center", color: colors.neutral600, fontSize: 14, fontWeight: "600" },
 });

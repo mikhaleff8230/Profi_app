@@ -103,9 +103,14 @@ export default function SpecialistProfileScreen() {
               {spec.reviews_count ?? 0} {t("reviews")}
             </Text>
           </View>
-          {spec.last_seen ? (
-            <Text style={styles.lastSeen}>
-              {t("last_seen")}: {timeAgo(spec.last_seen, lang)}
+          {spec.last_seen_label || spec.last_seen ? (
+            <Text
+              style={[
+                styles.lastSeen,
+                (spec.is_online || spec.last_seen_label?.startsWith("Сейчас")) && styles.lastSeenOnline,
+              ]}
+            >
+              {spec.last_seen_label || `${t("last_seen")}: ${timeAgo(spec.last_seen!, lang)}`}
             </Text>
           ) : null}
         </View>
@@ -194,6 +199,7 @@ const styles = StyleSheet.create({
   ratingNum: { fontWeight: "800", fontSize: 16 },
   reviews: { fontSize: 14, color: colors.neutral500 },
   lastSeen: { marginTop: 8, fontSize: 13, color: colors.neutral500 },
+  lastSeenOnline: { color: colors.emerald, fontWeight: "600" },
   row: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
   rowText: { fontSize: 15 },
   block: { marginBottom: 20 },

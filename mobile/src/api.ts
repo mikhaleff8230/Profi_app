@@ -18,13 +18,21 @@ function resolveApiUrl(path: string, namespace: ApiNamespace = "proffi"): string
 /** Публичный URL файла с бэкенда Proffi */
 export function fileUrl(path: string | null | undefined): string | null {
   if (!path) return null;
-  if (path.startsWith("http") || path.startsWith("blob:")) return path;
-  return `${API_BASE}/api/proffi/files/${path}`;
+  if (path.startsWith("blob:")) return path;
+  if (path.startsWith("http")) {
+    return path.replace("https://treabo.ru/api/files/", "https://api.treabo.ru/api/proffi/files/");
+  }
+  if (path.startsWith("/api/proffi/files/")) return `${API_BASE}${path}`;
+  if (path.startsWith("/api/files/")) return `${API_BASE}/api/proffi/files/${path.replace(/^\/api\/files\/?/, "")}`;
+  return `${API_BASE}/api/proffi/files/${path.replace(/^\/+/, "")}`;
 }
 
 /** Multipart загрузка (аватар, фото задания и т.п.) */
-export async function apiUploadFile(uri: string, mime = "image/jpeg", filename = "upload.jpg"): Promise<{ path: string }> {
+export async function apiUploadFile(uri: string, mime = "image/jpeg", filename = "upload.jpg"): Promise<{ path: string; url?: string; mime?: string | null; size?: number | null }> {
   const token = await getToken();
+  if (!token) {
+    throw new Error("Нужно войти в аккаунт");
+  }
   const form = new FormData();
   form.append("file", { uri, name: filename, type: mime } as any);
   const headers: HeadersInit = {};
@@ -35,7 +43,7 @@ export async function apiUploadFile(uri: string, mime = "image/jpeg", filename =
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
-    throw new Error(text || `HTTP ${res.status}`);
+    throw new Error(htmlErrorMessage(text, res.status));
   }
   if (!res.ok) {
     const msg = errorMessage(data, res.status);
@@ -92,12 +100,22 @@ export async function apiFetch(
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
-    throw new Error(text || `HTTP ${res.status}`);
+    throw new Error(htmlErrorMessage(text, res.status));
   }
   if (!res.ok) {
     throw new Error(errorMessage(data, res.status));
   }
   return data;
+}
+
+function htmlErrorMessage(text: string, status: number): string {
+  if (/<html[\s>]/i.test(text) || /<!doctype html/i.test(text)) {
+    return status >= 500
+      ? "Сервер вернул ошибку. Проверьте API/миграции и повторите."
+      : `Ошибка API HTTP ${status}`;
+  }
+  const clean = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return clean || `HTTP ${status}`;
 }
 
 function errorMessage(data: any, status: number): string {

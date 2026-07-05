@@ -7,13 +7,22 @@ import * as Lucide from "lucide-react";
 import { api } from "../api";
 import { useGeo } from "../geo";
 import { useLang } from "../i18n";
-import { TaskCard } from "../components/TaskCard";
+import { formatBudget, stripHtml, TaskCard } from "../components/TaskCard";
+import { SeoHead } from "../components/Layout";
 
 // Override default Leaflet icons (the bundled icons reference local paths that fail under webpack)
-function createMarkerIcon(count, isSingle = false) {
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function createMarkerIcon(count, isSingle = false, label = "", budget = "") {
   const html = isSingle
-    ? `<div style="width:28px;height:28px;border-radius:50%;background:#000;border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.3)"></div>`
-    : `<div style="background:#000;color:#fff;border:3px solid #fff;border-radius:9999px;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.35);padding:0 8px">${count > 99 ? "99+" : count}</div>`;
+    ? `<div style="background:#fff;border:1px solid #ddd;border-radius:10px;padding:4px 8px;box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:150px"><div style="font-size:11px;font-weight:700;line-height:1.2;color:#111">${escapeHtml(label)}</div>${budget ? `<div style="font-size:10px;margin-top:2px;color:#444">${escapeHtml(budget)}</div>` : ""}</div>`
+    : `<div style="background:#000;color:#fff;border:3px solid #fff;border-radius:9999px;min-width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;box-shadow:0 4px 14px rgba(0,0,0,.35);padding:0 6px">${count > 99 ? "99+" : count}</div>`;
   return L.divIcon({ html, className: "", iconSize: [44, 44], iconAnchor: [22, 22] });
 }
 
@@ -54,6 +63,7 @@ export default function MapView() {
 
   return (
     <div className="flex flex-col h-full bg-white relative" data-testid="map-page">
+      <SeoHead title="Карта заданий Treabo" description="Задания и заказы на карте" />
       {/* Toggle header overlay */}
       <div className="absolute top-5 left-5 z-[400] flex items-center gap-3">
         <div className="bg-lavender-100 rounded-full p-1 flex items-center shadow-md">
@@ -100,12 +110,12 @@ export default function MapView() {
             <Marker
               key={task.id}
               position={[task.lat, task.lng]}
-              icon={createMarkerIcon(1, true)}
+              icon={createMarkerIcon(1, true, stripHtml(task.title), formatBudget(task) || "")}
               eventHandlers={{ click: () => setSelected(task) }}
             >
               <Popup>
-                <div className="font-bold text-sm">{task.title}</div>
-                {task.budget && <div className="text-xs">до {task.budget} {t("rub")}</div>}
+                <div className="font-bold text-sm">{stripHtml(task.title)}</div>
+                {formatBudget(task) && <div className="text-xs">{formatBudget(task)}</div>}
               </Popup>
             </Marker>
           ))}
@@ -117,10 +127,10 @@ export default function MapView() {
         <div className="w-12 h-1 bg-neutral-300 rounded-full mx-auto mb-3" />
         {selected ? (
           <div onClick={() => setSelected(null)}>
-            <TaskCard task={selected} categories={categories} onClick={() => navigate(`/tasks/${selected.id}`)} />
+            <TaskCard task={selected} categories={categories} onClick={() => navigate(`/tasks/${selected.id}`)} showLink />
           </div>
         ) : tasks.length > 0 ? (
-          <TaskCard task={tasks[0]} categories={categories} onClick={() => navigate(`/tasks/${tasks[0].id}`)} />
+          <TaskCard task={tasks[0]} categories={categories} onClick={() => navigate(`/tasks/${tasks[0].id}`)} showLink />
         ) : (
           <p className="text-center text-sm text-neutral-400 py-4">{t("no_tasks")}</p>
         )}

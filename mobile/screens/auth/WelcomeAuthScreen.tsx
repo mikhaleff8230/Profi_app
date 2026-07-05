@@ -7,8 +7,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useLang } from "../../src/context/LangContext";
 import { colors, spacing, typography } from "../../src/theme";
 import { PrimaryButton } from "../../components/PrimaryButton";
-
-import { OnboardingHeroIllustration } from "../../components/OnboardingHeroIllustration";
+import { TreaboLogo } from "../../components/TreaboLogo";
 import type { AuthStackParamList } from "../../src/navigation/types";
 
 type Nav = NativeStackNavigationProp<AuthStackParamList>;
@@ -25,16 +24,12 @@ export default function WelcomeAuthScreen() {
         <View style={{ flex: 1 }} />
       </View>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <OnboardingHeroIllustration width={280} height={200} />
-        <Text style={styles.title}>{t("onboarding_title")}</Text>
+        <TreaboLogo />
+        <Text style={styles.title}>Даем заработать каждому мастеру</Text>
+        <Text style={styles.note}>Приложение только для мастеров</Text>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
         <PrimaryButton title={t("onboarding_specialist_cta")} onPress={() => navigation.navigate("PhoneEntry", { role: "specialist" })} />
-        <PrimaryButton
-          title={t("onboarding_customer_cta")}
-          variant="ghost"
-          onPress={() => navigation.navigate("PhoneEntry", { role: "customer" })}
-        />
         <PrimaryButton title={t("back_to_login")} variant="ghost" onPress={() => navigation.navigate("Login")} />
       </View>
     </View>
@@ -44,14 +39,21 @@ export default function WelcomeAuthScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: spacing.xxl },
   headerRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
-  scroll: { flexGrow: 1, paddingTop: 8, paddingBottom: 16 },
+  scroll: { flexGrow: 1, paddingTop: 24, paddingBottom: 16, alignItems: "center" },
   title: {
     ...typography.title,
     fontSize: 28,
     lineHeight: 34,
     color: colors.black,
-    marginTop: spacing.lg,
-    textAlign: "left",
+    marginTop: spacing.xl,
+    textAlign: "center",
+    alignSelf: "stretch",
+  },
+  note: {
+    fontSize: 14,
+    color: colors.neutral500,
+    marginTop: spacing.md,
+    textAlign: "center",
     alignSelf: "stretch",
   },
   footer: { gap: spacing.md },

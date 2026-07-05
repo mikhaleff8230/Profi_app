@@ -22,7 +22,7 @@ const types: { value: AiKnowledgeType; label: string }[] = [
 ];
 
 const emptyForm = {
-  type: 'question' as AiKnowledgeType,
+  type: 'instruction' as AiKnowledgeType,
   category_slug: '',
   work_slug: '',
   title: '',
@@ -79,7 +79,7 @@ export default function ProffiAiChatPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [typeFilter, setTypeFilter] = useState<AiKnowledgeType | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<AiKnowledgeType | 'all'>('instruction');
 
   const filteredRows = useMemo(() => {
     if (typeFilter === 'all') return rows;
@@ -153,8 +153,8 @@ export default function ProffiAiChatPage() {
   return (
     <>
       <ProffiPageHeader
-        title="AI чат Treabo"
-        subtitle="База знаний для AI-оформления заявок: категории, виды работ, параметры, уточняющие вопросы и системные инструкции."
+        title="AI инструкции Treabo"
+        subtitle="Общие системные инструкции для AI-оформления заявок. Категории, работы и вопросы управляются отдельно."
       />
 
       {error ? <ProffiError message={error} /> : null}
