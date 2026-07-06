@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
 import { BottomActionBar } from "../components/BottomActionBar";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -20,7 +21,7 @@ import { apiFetch } from "../src/api";
 import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { useChatStore } from "../src/store/chatStore";
-import { yandexMapsApiKey } from "../src/maps/yandexMapHtml";
+import { buildMapUpdateScript, buildYandexMapShellHtml, yandexMapsApiKey } from "../src/maps/yandexMapHtml";
 import { timeAgo } from "../src/utils/timeAgo";
 import { colors, radii, spacing, typography } from "../src/theme";
 import { ScreenHeader } from "../components/ScreenHeader";
@@ -51,18 +52,61 @@ type DetailRow = {
   value: string;
 };
 
-function yandexStaticMapUrl(lat: number, lng: number): string {
-  const params = new URLSearchParams({
-    ll: `${lng},${lat}`,
-    z: "12",
-    size: "650,320",
-    l: "map",
-    pt: `${lng},${lat},pm2rdm`,
-    lang: "ru_RU",
-  });
+function TaskInlineMap({ task }: { task: Task }) {
+  const webRef = useRef<WebView>(null);
   const apiKey = yandexMapsApiKey();
-  if (apiKey) params.set("apikey", apiKey);
-  return `https://static-maps.yandex.ru/v1?${params.toString()}`;
+  const html = useMemo(() => (apiKey ? buildYandexMapShellHtml(apiKey) : ""), [apiKey]);
+  const lat = Number(task.lat);
+  const lng = Number(task.lng);
+
+  const injectPoint = useCallback(() => {
+    if (!webRef.current || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    webRef.current.injectJavaScript(
+      buildMapUpdateScript(
+        [
+          {
+            id: String(task.id),
+            title: task.title || "Задание",
+            priceLabel: formatTaskBudget(task),
+            city: task.city,
+            address: task.address,
+            lat,
+            lng,
+          },
+        ],
+        String(task.id)
+      )
+    );
+  }, [lat, lng, task]);
+
+  if (!apiKey) {
+    return (
+      <View style={styles.mapPlaceholder}>
+        <Ionicons name="map-outline" size={28} color={colors.neutral400} />
+        <Text style={styles.mapPlaceholderText}>Ключ Яндекс.Карт не задан</Text>
+      </View>
+    );
+  }
+
+  return (
+    <WebView
+      ref={webRef}
+      originWhitelist={["*"]}
+      source={{ html }}
+      onLoadEnd={injectPoint}
+      onMessage={(event) => {
+        try {
+          const message = JSON.parse(event.nativeEvent.data);
+          if (message.type === "ready") injectPoint();
+        } catch {
+          /* ignore */
+        }
+      }}
+      javaScriptEnabled
+      domStorageEnabled
+      style={styles.staticMap}
+    />
+  );
 }
 
 function stringifyDetailValue(value: unknown): string {
@@ -456,11 +500,7 @@ export default function TaskDetailScreen() {
               {[task.city, task.address].filter(Boolean).join(", ")}
             </Text>
             {hasCoords ? (
-              <Image
-                source={{ uri: yandexStaticMapUrl(Number(task.lat), Number(task.lng)) }}
-                style={styles.staticMap}
-                resizeMode="cover"
-              />
+              <TaskInlineMap task={task} />
             ) : (
               <View style={styles.mapPlaceholder}>
                 <Ionicons name="map-outline" size={28} color={colors.neutral400} />

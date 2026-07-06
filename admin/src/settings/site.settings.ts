@@ -116,6 +116,12 @@ export const siteSettings = {
         permissions: adminOnly,
       },
       {
+        href: Routes.proffi.brandingSettings,
+        label: 'Treabo логотип',
+        icon: 'SettingsIcon',
+        permissions: adminOnly,
+      },
+      {
         href: Routes.proffi.matchingSettings,
         label: 'Treabo подбор мастеров',
         icon: 'UsersIcon',

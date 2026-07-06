@@ -4,7 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useLang } from "../../src/context/LangContext";
 import { colors, spacing, typography } from "../../src/theme";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { TreaboLogo } from "../../components/TreaboLogo";
@@ -15,22 +14,18 @@ type Nav = NativeStackNavigationProp<AuthStackParamList>;
 export default function WelcomeAuthScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
-  const { t } = useLang();
 
   return (
     <View style={[styles.root, { paddingTop: Math.max(insets.top, 8) }]}>
       <StatusBar style="dark" />
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }} />
-      </View>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <TreaboLogo />
-        <Text style={styles.title}>Даем заработать каждому мастеру</Text>
-        <Text style={styles.note}>Приложение только для мастеров</Text>
+        <Text style={styles.title}>Даем заработать каждому мастеру.</Text>
+        <Text style={styles.note}>Treabo Proffi — приложение только для мастеров. Заказы, карта, чат и анкета специалиста в одном месте.</Text>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
-        <PrimaryButton title={t("onboarding_specialist_cta")} onPress={() => navigation.navigate("PhoneEntry", { role: "specialist" })} />
-        <PrimaryButton title={t("back_to_login")} variant="ghost" onPress={() => navigation.navigate("Login")} />
+        <PrimaryButton title="Стать мастером" onPress={() => navigation.navigate("PhoneEntry", { role: "specialist" })} />
+        <PrimaryButton title="У меня уже есть аккаунт" variant="ghost" onPress={() => navigation.navigate("Login")} />
       </View>
     </View>
   );
@@ -38,8 +33,7 @@ export default function WelcomeAuthScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white, paddingHorizontal: spacing.xxl },
-  headerRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
-  scroll: { flexGrow: 1, paddingTop: 24, paddingBottom: 16, alignItems: "center" },
+  scroll: { flexGrow: 1, paddingTop: 44, paddingBottom: 16, alignItems: "center", justifyContent: "center" },
   title: {
     ...typography.title,
     fontSize: 28,
@@ -55,6 +49,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: "center",
     alignSelf: "stretch",
+    lineHeight: 20,
   },
   footer: { gap: spacing.md },
 });

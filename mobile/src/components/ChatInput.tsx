@@ -7,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radii, spacing } from "../theme";
 
 export const CHAT_INPUT_NATIVE_ID = "proffi-chat-input";
@@ -29,10 +30,11 @@ export function ChatInput({
   sending = false,
   disabled = false,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const canSend = value.trim().length > 0 && !sending && !disabled;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
       <View style={styles.row}>
         <TextInput
           nativeID={CHAT_INPUT_NATIVE_ID}

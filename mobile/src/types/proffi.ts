@@ -60,6 +60,10 @@ export type Specialist = {
 export type SpecialistReview = {
   id: string;
   rating: number;
+  comment?: string | null;
+  customer_name?: string | null;
+  task_title?: string | null;
+  photos?: string[];
   text?: string | null;
   author_name?: string | null;
   created_at?: string | null;

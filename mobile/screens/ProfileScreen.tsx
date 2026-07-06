@@ -40,11 +40,11 @@ type Stats = {
 
 type IdentityStatus = "not_submitted" | "pending" | "approved" | "rejected";
 
-const IDENTITY_META: Record<IdentityStatus, { text: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  not_submitted: { text: "Паспорт не подтвержден", color: colors.neutral500, icon: "shield-outline" },
-  pending: { text: "Паспорт на проверке", color: "#D7A948", icon: "time-outline" },
-  approved: { text: "Паспорт проверен", color: "#22C55E", icon: "checkmark-circle" },
-  rejected: { text: "Паспорт отклонен", color: "#EF4444", icon: "close-circle" },
+const IDENTITY_META: Record<IdentityStatus, { color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  not_submitted: { color: colors.neutral500, icon: "shield-outline" },
+  pending: { color: "#D7A948", icon: "time-outline" },
+  approved: { color: "#22C55E", icon: "checkmark-circle" },
+  rejected: { color: "#EF4444", icon: "close-circle" },
 };
 
 function formatPhoneDisplay(phone?: string | null): string {
@@ -94,16 +94,23 @@ export default function ProfileScreen() {
     }
   }, [user]);
 
+  const identityText: Record<IdentityStatus, string> = {
+    not_submitted: t("identity_not_submitted"),
+    pending: t("identity_pending"),
+    approved: t("identity_approved"),
+    rejected: t("identity_rejected"),
+  };
+
   const onLogout = () => {
     if (Platform.OS === "web") {
-      if (globalThis.confirm?.("Выйти из аккаунта?") ?? true) {
+      if (globalThis.confirm?.(t("logout_confirm")) ?? true) {
         void logout();
       }
       return;
     }
-    Alert.alert("Выход", "Выйти из аккаунта?", [
+    Alert.alert(t("logout_title"), t("logout_confirm"), [
       { text: t("cancel"), style: "cancel" },
-      { text: "Выйти", style: "destructive", onPress: () => void logout() },
+      { text: t("logout_action"), style: "destructive", onPress: () => void logout() },
     ]);
   };
 
@@ -118,7 +125,7 @@ export default function ProfileScreen() {
       setEditingBio(false);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -137,7 +144,7 @@ export default function ProfileScreen() {
       setEditingName(false);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -146,7 +153,7 @@ export default function ProfileScreen() {
   const pickAvatar = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Доступ", "Нужно разрешение на фото");
+      Alert.alert(t("photo_permission_title"), t("photo_permission_body"));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -166,7 +173,7 @@ export default function ProfileScreen() {
       setUser(data as User);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setUploading(false);
     }
@@ -175,7 +182,7 @@ export default function ProfileScreen() {
   const pickPortfolio = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Доступ", "Нужно разрешение на фото");
+      Alert.alert(t("photo_permission_title"), t("photo_permission_body"));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -201,7 +208,7 @@ export default function ProfileScreen() {
       setPortfolio(nextPortfolio);
       Alert.alert(t("success"));
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setUploading(false);
     }
@@ -212,6 +219,7 @@ export default function ProfileScreen() {
   const isSpecialist = user.role === "specialist";
   const avatarUri = fileUrl(user.avatar);
   const identity = IDENTITY_META[identityStatus];
+  const identityLabel = identityText[identityStatus];
 
   return (
     <TabScreenLayout>
@@ -234,7 +242,7 @@ export default function ProfileScreen() {
           <Ionicons name="call-outline" size={18} color={colors.neutral500} />
           <Text style={styles.phoneText}>{formatPhoneDisplay(user.phone)}</Text>
           <TouchableOpacity onPress={() => navigation.navigate("PhoneChange")}>
-            <Text style={styles.linkText}>Сменить</Text>
+            <Text style={styles.linkText}>{t("change_phone")}</Text>
           </TouchableOpacity>
         </CardLight>
 
@@ -317,20 +325,20 @@ export default function ProfileScreen() {
         {isSpecialist && (
           <View style={[styles.verifiedPill, { backgroundColor: colors.lavender50 }]}>
             <Ionicons name={identity.icon} size={16} color={identity.color} />
-            <Text style={[styles.verifiedText, { color: identity.color }]}>{identity.text}</Text>
+            <Text style={[styles.verifiedText, { color: identity.color }]}>{identityLabel}</Text>
           </View>
         )}
 
         {isSpecialist && identityStatus !== "pending" && identityStatus !== "approved" && (
           <PrimaryButton
-            title="Пройти верификацию"
+            title={t("verify_identity")}
             onPress={() => navigation.navigate("IdentityVerification")}
           />
         )}
 
         {isSpecialist && (
           <TouchableOpacity style={styles.menuRow} onPress={() => navigation.navigate("MyReviews")}>
-            <Text style={styles.menuRowText}>Мои отзывы</Text>
+            <Text style={styles.menuRowText}>{t("my_reviews")}</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.neutral400} />
           </TouchableOpacity>
         )}
@@ -338,12 +346,12 @@ export default function ProfileScreen() {
         {isSpecialist && (
           <CardLight style={styles.balanceCard}>
             <View>
-              <Text style={styles.balanceLabel}>Баланс</Text>
+              <Text style={styles.balanceLabel}>{t("balance_label")}</Text>
               <Text style={styles.balanceValue}>{Math.round(account?.balance ?? 0).toLocaleString("ru-RU")} ₽</Text>
             </View>
             <View style={styles.freePill}>
               <Text style={styles.freePillValue}>{account?.free_remaining_today ?? 0}</Text>
-              <Text style={styles.freePillText}>откликов</Text>
+              <Text style={styles.freePillText}>{t("responses_left")}</Text>
             </View>
           </CardLight>
         )}
@@ -414,7 +422,7 @@ export default function ProfileScreen() {
         {isSpecialist && (
           <View style={styles.services}>
             <View style={styles.portfolioHead}>
-              <Text style={styles.sectionTitle}>Портфолио</Text>
+              <Text style={styles.sectionTitle}>{t("portfolio_title")}</Text>
               <TouchableOpacity style={styles.addPortfolioBtn} onPress={pickPortfolio} disabled={uploading || portfolio.length >= 10}>
                 <Ionicons name="add" size={18} color={colors.black} />
               </TouchableOpacity>
@@ -427,7 +435,7 @@ export default function ProfileScreen() {
                 })}
               </ScrollView>
             ) : (
-              <Text style={styles.bioText}>Добавьте фотографии работ</Text>
+              <Text style={styles.bioText}>{t("portfolio_add_hint")}</Text>
             )}
           </View>
         )}

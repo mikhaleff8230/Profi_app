@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import { apiFetch } from "../src/api";
+import { apiFetch, fileUrl } from "../src/api";
 
 type Props = {
   size?: "splash" | "auth";
@@ -15,7 +15,10 @@ export function TreaboLogo({ size = "auth" }: Props) {
 
   useEffect(() => {
     apiFetch("/site-settings", { method: "GET", auth: false })
-      .then((data) => setLogoUrl(typeof data?.logo_url === "string" ? data.logo_url : null))
+      .then((data) => {
+        const raw = typeof data?.logo_url === "string" ? data.logo_url : null;
+        setLogoUrl(raw ? fileUrl(raw) : null);
+      })
       .catch(() => setLogoUrl(null));
   }, []);
 

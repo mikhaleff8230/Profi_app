@@ -32,9 +32,9 @@ function isEmailOk(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function displayNameFromEmail(email: string): string {
+function displayNameFromEmail(email: string, fallback: string): string {
   const local = email.split("@")[0]?.trim() || "";
-  return local ? local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Мастер";
+  return local ? local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : fallback;
 }
 
 function isOtpSent(data: unknown): data is { status: "otp_sent"; otp_id: string } {
@@ -77,7 +77,7 @@ export default function PhoneAuthScreen() {
         phone: apiPhone,
         email: cleanEmail,
         password,
-        name: displayNameFromEmail(cleanEmail),
+        name: displayNameFromEmail(cleanEmail, t("auth_default_master_name")),
         role,
       }),
       auth: false,
@@ -85,7 +85,7 @@ export default function PhoneAuthScreen() {
     if (isOtpSent(data)) {
       setOtpId(data.otp_id);
       setOtpStep(true);
-      Alert.alert("Код отправлен", "Введите код из SMS");
+      Alert.alert(t("otp_sent_title"), t("otp_enter_sms"));
       return;
     }
     await signIn(data.token, data.user);
@@ -93,15 +93,15 @@ export default function PhoneAuthScreen() {
 
   const onSubmit = async () => {
     if (!phoneValid || !apiPhone) {
-      Alert.alert("Ошибка", t("auth_invalid_phone"));
+      Alert.alert(t("error_title"), t("auth_invalid_phone"));
       return;
     }
     if (!emailValid) {
-      Alert.alert("Ошибка", t("auth_invalid_email"));
+      Alert.alert(t("error_title"), t("auth_invalid_email"));
       return;
     }
     if (!passwordValid) {
-      Alert.alert("Ошибка", t("auth_password_short"));
+      Alert.alert(t("error_title"), t("auth_password_short"));
       return;
     }
     setBusy(true);
@@ -111,7 +111,7 @@ export default function PhoneAuthScreen() {
         phone: apiPhone,
         purpose: "register" as const,
         password,
-        name: displayNameFromEmail(cleanEmail),
+        name: displayNameFromEmail(cleanEmail, t("auth_default_master_name")),
         role,
         email: cleanEmail,
       };
@@ -124,7 +124,7 @@ export default function PhoneAuthScreen() {
         if (isOtpSent(data)) {
           setOtpId(data.otp_id);
           setOtpStep(true);
-          Alert.alert("Код отправлен", "Введите код из SMS");
+          Alert.alert(t("otp_sent_title"), t("otp_enter_sms"));
           return;
         }
         if (data?.token) {
@@ -139,7 +139,7 @@ export default function PhoneAuthScreen() {
       }
       await registerFallback();
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -148,7 +148,7 @@ export default function PhoneAuthScreen() {
   const onVerifyOtp = async () => {
     if (!otpId || !apiPhone) return;
     if (!canVerify) {
-      Alert.alert("Ошибка", "Введите код из SMS");
+      Alert.alert(t("error_title"), t("otp_enter_sms"));
       return;
     }
     setBusy(true);
@@ -164,7 +164,7 @@ export default function PhoneAuthScreen() {
       });
       await signIn(data.token, data.user);
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -181,9 +181,9 @@ export default function PhoneAuthScreen() {
         <TouchableOpacity style={styles.backWrap} onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={22} color={colors.black} />
         </TouchableOpacity>
-        <Text style={styles.title}>Регистрация мастера</Text>
+        <Text style={styles.title}>{t("auth_master_register_title")}</Text>
         <Text style={styles.sub}>
-          {otpStep ? "Введите код из SMS для подтверждения телефона" : "Подтвердим телефон кодом из SMS"}
+          {otpStep ? t("auth_master_register_otp_sub") : t("auth_master_register_sub")}
         </Text>
       </View>
 
@@ -238,7 +238,7 @@ export default function PhoneAuthScreen() {
               disabled={!canSubmit || busy}
               activeOpacity={0.9}
             >
-              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>Получить код</Text>}
+              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>{t("auth_get_code")}</Text>}
             </TouchableOpacity>
           </>
         ) : (
@@ -246,7 +246,7 @@ export default function PhoneAuthScreen() {
             <TextInput
               style={styles.input}
               accessibilityLabel="Код из SMS"
-              placeholder="Код из SMS"
+              placeholder={t("otp_enter_sms")}
               placeholderTextColor={colors.neutral400}
               keyboardType="number-pad"
               value={otpCode}
@@ -259,10 +259,10 @@ export default function PhoneAuthScreen() {
               disabled={!canVerify || busy}
               activeOpacity={0.9}
             >
-              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>Подтвердить</Text>}
+              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>{t("auth_verify_code")}</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setOtpStep(false)}>
-              <Text style={styles.loginLink}>Изменить данные</Text>
+              <Text style={styles.loginLink}>{t("auth_change_data")}</Text>
             </TouchableOpacity>
           </>
         )}

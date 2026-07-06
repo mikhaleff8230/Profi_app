@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -18,7 +18,9 @@ type Review = {
   rating: number;
   comment?: string | null;
   customer_name?: string | null;
+  task_title?: string | null;
   photos?: string[];
+  created_at?: string | null;
 };
 
 export default function MyReviewsScreen() {
@@ -26,14 +28,30 @@ export default function MyReviewsScreen() {
   const { user } = useAuth();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function load(silent = false) {
+    if (!user?.id) return;
+    if (!silent) setLoading(true);
+    try {
+      const data = await apiFetch(`/specialists/${user.id}/reviews`, { method: "GET" });
+      setReviews(Array.isArray(data?.data) ? data.data : []);
+    } catch {
+      setReviews([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    if (!user?.id) return;
-    apiFetch(`/specialists/${user.id}/reviews`, { method: "GET" })
-      .then((data) => setReviews(Array.isArray(data?.data) ? data.data : []))
-      .catch(() => setReviews([]))
-      .finally(() => setLoading(false));
+    load();
   }, [user?.id]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    load(true);
+  };
 
   return (
     <ScreenLayout>
@@ -43,30 +61,43 @@ export default function MyReviewsScreen() {
           <ActivityIndicator color={colors.black} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.black} />}
+        >
           {!reviews.length ? (
-            <Text style={styles.empty}>Отзывов пока нет</Text>
+            <CardLight style={styles.emptyCard}>
+              <Ionicons name="star-outline" size={28} color={colors.neutral400} />
+              <Text style={styles.emptyTitle}>Отзывов пока нет</Text>
+              <Text style={styles.emptyText}>Когда заказчики оставят оценки, они появятся здесь.</Text>
+            </CardLight>
           ) : (
             reviews.map((review) => (
               <CardLight key={review.id} style={styles.card}>
-                <View style={styles.stars}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Ionicons
-                      key={i}
-                      name={i < review.rating ? "star" : "star-outline"}
-                      size={16}
-                      color={colors.black}
-                    />
-                  ))}
-                  <Text style={styles.author}>{review.customer_name || "Клиент"}</Text>
+                <View style={styles.headerRow}>
+                  <View style={styles.stars}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Ionicons
+                        key={i}
+                        name={i < review.rating ? "star" : "star-outline"}
+                        size={16}
+                        color={colors.black}
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.rating}>{review.rating}/5</Text>
                 </View>
+
+                <Text style={styles.author}>{review.customer_name || "Клиент"}</Text>
+                {review.task_title ? <Text style={styles.task}>{review.task_title}</Text> : null}
                 {review.comment ? <Text style={styles.comment}>{review.comment}</Text> : null}
+
                 {!!review.photos?.length && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photos}>
                     {review.photos.map((photo, idx) => {
                       const uri = fileUrl(photo);
                       if (!uri) return null;
-                      return <Image key={idx} source={{ uri }} style={styles.photo} />;
+                      return <Image key={`${review.id}-${idx}`} source={{ uri }} style={styles.photo} />;
                     })}
                   </ScrollView>
                 )}
@@ -82,10 +113,15 @@ export default function MyReviewsScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  empty: { ...typography.body, color: colors.neutral500, textAlign: "center", marginTop: spacing.xl },
+  emptyCard: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
+  emptyTitle: { ...typography.headline, color: colors.black },
+  emptyText: { ...typography.body, color: colors.neutral500, textAlign: "center" },
   card: { gap: spacing.sm },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   stars: { flexDirection: "row", alignItems: "center", gap: 4 },
-  author: { marginLeft: spacing.sm, color: colors.neutral500, fontSize: 12 },
+  rating: { fontSize: 13, fontWeight: "700", color: colors.neutral500 },
+  author: { fontSize: 13, fontWeight: "700", color: colors.black },
+  task: { fontSize: 12, color: colors.neutral500 },
   comment: { ...typography.body, color: colors.black },
   photos: { marginTop: spacing.xs },
   photo: { width: 72, height: 72, borderRadius: 12, marginRight: spacing.sm },

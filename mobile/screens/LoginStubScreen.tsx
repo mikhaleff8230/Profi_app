@@ -49,7 +49,7 @@ export default function LoginStubScreen() {
       });
       await signIn(data.token, data.user);
     } catch (e: unknown) {
-      Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -66,8 +66,8 @@ export default function LoginStubScreen() {
         <TouchableOpacity style={styles.backWrap} onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={22} color={colors.black} />
         </TouchableOpacity>
-        <Text style={styles.title}>Вход</Text>
-        <Text style={styles.sub}>Введите телефон и пароль, указанные при регистрации.</Text>
+        <Text style={styles.title}>{t("login_title")}</Text>
+        <Text style={styles.sub}>{t("login_sub")}</Text>
       </View>
 
       <View style={styles.body}>
@@ -108,7 +108,7 @@ export default function LoginStubScreen() {
           disabled={!canSubmit || busy}
           activeOpacity={0.9}
         >
-          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>Войти</Text>}
+          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>{t("login_submit")}</Text>}
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate("Welcome")}>
           <Text style={styles.registerLink}>{t("go_to_register")}</Text>
