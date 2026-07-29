@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "903219089520",
+    "project_id": "treabo-95709",
+    "storage_bucket": "treabo-95709.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:903219089520:android:1100e0147c5b72b68aa4b5",
+        "android_client_info": {
+          "package_name": "ru.sancan.proffi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzQnYdjK9ummdBfldFn-gv9EW4rovTce8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

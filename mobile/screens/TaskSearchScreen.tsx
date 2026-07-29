@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -17,9 +17,13 @@ export default function TaskSearchScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState("");
-  const [city, setCity] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const visibleSuggestions = useMemo(() => {
+    const query = q.trim().toLocaleLowerCase("ru-RU");
+    if (!query) return [];
+    return suggestions.filter((item) => item.toLocaleLowerCase("ru-RU").includes(query)).slice(0, 8);
+  }, [q, suggestions]);
 
   useEffect(() => {
     getSearchHistory().then(setHistory).catch(() => setHistory([]));
@@ -34,17 +38,15 @@ export default function TaskSearchScreen() {
   const submit = useCallback(
     async (value = q) => {
       const trimmed = value.trim();
-      const selectedCity = city.trim();
       if (trimmed) {
         const next = await addSearchHistory(trimmed);
         setHistory(next);
       }
       navigation.navigate("TasksList", {
         q: trimmed || undefined,
-        city: selectedCity || undefined,
       });
     },
-    [city, navigation, q]
+    [navigation, q]
   );
 
   const removeHistoryItem = async (item: string) => {
@@ -70,24 +72,11 @@ export default function TaskSearchScreen() {
             />
           </View>
 
-          <View style={styles.searchBox}>
-            <Ionicons name="location-outline" size={20} color={colors.neutral500} />
-            <TextInput
-              style={styles.input}
-              value={city}
-              onChangeText={setCity}
-              placeholder="Город"
-              placeholderTextColor={colors.neutral400}
-              returnKeyType="search"
-              onSubmitEditing={() => void submit()}
-            />
-          </View>
-
-          {suggestions.length > 0 && (
+          {visibleSuggestions.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>Популярные категории</Text>
+              <Text style={styles.sectionTitle}>Подсказки</Text>
               <View style={styles.chips}>
-                {suggestions.map((item) => (
+                {visibleSuggestions.map((item) => (
                   <TouchableOpacity key={item} style={styles.chip} onPress={() => void submit(item)}>
                     <Text style={styles.chipText}>{item}</Text>
                   </TouchableOpacity>
@@ -96,7 +85,7 @@ export default function TaskSearchScreen() {
             </>
           )}
 
-          {history.length > 0 && (
+          {!q.trim() && history.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>История запросов</Text>
               {history.map((item) => (

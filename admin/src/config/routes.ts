@@ -149,7 +149,6 @@ export const Routes = {
     categories: '/proffi/categories',
     works: '/proffi/works',
     questions: '/proffi/questions',
-    filters: '/proffi/filters',
     responseSettings: '/proffi/response-settings',
     matchingSettings: '/proffi/matching-settings',
     brandingSettings: '/proffi/branding-settings',

@@ -17,17 +17,12 @@ import {
   checkPendingBalanceDeposit,
   createBalanceDeposit,
   fetchAccountSummary,
-  reportManualBalancePayment,
   type AccountSummary,
-  type BalanceDepositResult,
 } from "../src/services/account";
-
-const PRESETS = [100, 300, 500, 1000];
 
 export default function WalletScreen() {
   const [account, setAccount] = useState<AccountSummary | null>(null);
-  const [amount, setAmount] = useState("300");
-  const [lastDeposit, setLastDeposit] = useState<BalanceDepositResult | null>(null);
+  const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -42,17 +37,16 @@ export default function WalletScreen() {
 
   useEffect(load, []);
 
-  const normalizedAmount = Math.max(1, Number(String(amount).replace(/\D/g, "")) || 0);
+  const normalizedAmount = Number(String(amount).replace(/\D/g, "")) || 0;
 
   const startYookassaDeposit = async () => {
-    if (!normalizedAmount) {
-      Alert.alert("Укажите сумму", "Введите сумму пополнения от 1 ₽.");
+    if (normalizedAmount < 100) {
+      Alert.alert("Минимальная сумма — 100 ₽", "Введите сумму пополнения не менее 100 ₽.");
       return;
     }
     setPaying(true);
     try {
       const deposit = await createBalanceDeposit(normalizedAmount, "yookassa");
-      setLastDeposit(deposit);
       if (deposit.payment_url) {
         await Linking.openURL(deposit.payment_url);
       } else {
@@ -60,37 +54,6 @@ export default function WalletScreen() {
       }
     } catch (error) {
       Alert.alert("Ошибка пополнения", error instanceof Error ? error.message : String(error));
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  const startManualDeposit = async () => {
-    setPaying(true);
-    try {
-      const deposit = await createBalanceDeposit(0, "manual");
-      setLastDeposit(deposit);
-      if (deposit.payment_url) {
-        await Linking.openURL(deposit.payment_url);
-      }
-      Alert.alert(
-        "Ручное пополнение",
-        `Оплатите ${Math.round(Number(deposit.amount || 0))} ₽ по открытой ссылке, затем нажмите "Я оплатил".`,
-      );
-    } catch (error) {
-      Alert.alert("Ошибка", error instanceof Error ? error.message : String(error));
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  const reportManual = async () => {
-    setPaying(true);
-    try {
-      const result = await reportManualBalancePayment(lastDeposit?.deposit_id);
-      Alert.alert("Готово", result.message || "Сообщение об оплате отправлено.");
-    } catch (error) {
-      Alert.alert("Ошибка", error instanceof Error ? error.message : String(error));
     } finally {
       setPaying(false);
     }
@@ -136,36 +99,16 @@ export default function WalletScreen() {
 
             <CardLight style={styles.depositCard}>
               <Text style={styles.cardTitle}>Пополнить баланс</Text>
-              <Text style={styles.help}>Деньги зачисляются после подтверждения платежа в YooKassa.</Text>
-              <View style={styles.presets}>
-                {PRESETS.map((preset) => (
-                  <PrimaryButton
-                    key={preset}
-                    title={`${preset} ₽`}
-                    variant={String(preset) === amount ? "primary" : "secondary"}
-                    fullWidth={false}
-                    style={styles.presetButton}
-                    onPress={() => setAmount(String(preset))}
-                  />
-                ))}
-              </View>
               <TextInput
                 style={styles.input}
                 value={amount}
                 onChangeText={(value) => setAmount(value.replace(/\D/g, ""))}
                 keyboardType="number-pad"
-                placeholder="Сумма, ₽"
+                placeholder="Сумма от 100 ₽"
                 placeholderTextColor={colors.neutral400}
               />
               <PrimaryButton title="Перейти к оплате" onPress={startYookassaDeposit} loading={paying} />
               <PrimaryButton title="Проверить оплату" onPress={checkPending} loading={checking} variant="secondary" style={styles.secondaryAction} />
-            </CardLight>
-
-            <CardLight style={styles.depositCard}>
-              <Text style={styles.cardTitle}>Ручное пополнение</Text>
-              <Text style={styles.help}>Если автоматическая оплата недоступна, откройте ссылку оплаты и отправьте отметку администратору.</Text>
-              <PrimaryButton title="Открыть ручную оплату" onPress={startManualDeposit} loading={paying} variant="secondary" />
-              <PrimaryButton title="Я оплатил" onPress={reportManual} loading={paying} variant="ghost" style={styles.secondaryAction} />
             </CardLight>
 
             <PrimaryButton title="Обновить баланс" onPress={load} variant="ghost" />
@@ -198,11 +141,9 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 12, color: colors.neutral500, marginTop: 4 },
   depositCard: { marginBottom: 14 },
   cardTitle: { fontSize: 18, fontWeight: "800", color: colors.black },
-  help: { marginTop: 6, marginBottom: 14, fontSize: 13, lineHeight: 19, color: colors.neutral500 },
-  presets: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  presetButton: { minHeight: 42, paddingHorizontal: 14 },
   input: {
     minHeight: 52,
+    marginTop: 14,
     borderRadius: radii.lg,
     backgroundColor: colors.neutral100,
     paddingHorizontal: 16,

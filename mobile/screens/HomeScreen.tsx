@@ -7,7 +7,7 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { TabScreenLayout } from "../components/TabScreenLayout";
 import { TaskCardRow, type TaskItem } from "../components/TaskCardRow";
-import { CategoryTile, type CategoryTileData } from "../components/CategoryTile";
+import type { CategoryTileData } from "../components/CategoryTile";
 import { apiFetch } from "../src/api";
 import { colors, spacing } from "../src/theme";
 import type { MainTabParamList, RootStackParamList } from "../src/navigation/types";
@@ -78,21 +78,6 @@ export default function HomeScreen() {
             <Ionicons name="options-outline" size={22} color={colors.black} />
           </TouchableOpacity>
         </View>
-
-        {categories.length > 0 && (
-          <View style={styles.categories}>
-            <Text style={styles.sectionTitle}>Категории</Text>
-            <View style={styles.categoryGrid}>
-              {categories.slice(0, 8).map((cat) => (
-                <CategoryTile
-                  key={String(cat.id)}
-                  cat={cat}
-                  onPress={() => navigation.navigate("TasksList", { category_id: String(cat.id) })}
-                />
-              ))}
-            </View>
-          </View>
-        )}
 
         {loading ? (
           <ActivityIndicator style={styles.loader} color={colors.neutral400} />
@@ -166,9 +151,6 @@ const styles = StyleSheet.create({
   },
   searchText: { fontSize: 14, color: colors.neutral500 },
   filterBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: colors.white, alignItems: "center", justifyContent: "center" },
-  categories: { marginBottom: spacing.md },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.black, marginBottom: spacing.sm },
-  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   taskList: { gap: 12 },
   loader: { marginVertical: 24 },
   empty: { textAlign: "center", color: colors.neutral400, paddingVertical: 24, fontSize: 14 },

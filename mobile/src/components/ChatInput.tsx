@@ -20,6 +20,7 @@ type Props = {
   placeholder?: string;
   sending?: boolean;
   disabled?: boolean;
+  keyboardVisible?: boolean;
 };
 
 export function ChatInput({
@@ -29,12 +30,18 @@ export function ChatInput({
   placeholder = "Сообщение…",
   sending = false,
   disabled = false,
+  keyboardVisible = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const canSend = value.trim().length > 0 && !sending && !disabled;
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingBottom: keyboardVisible ? 5 : Math.max(insets.bottom, 5) + 5 },
+      ]}
+    >
       <View style={styles.row}>
         <TextInput
           nativeID={CHAT_INPUT_NATIVE_ID}

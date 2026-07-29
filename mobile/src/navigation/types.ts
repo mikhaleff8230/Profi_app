@@ -21,7 +21,16 @@ export type RootStackParamList = {
       }
     | undefined;
   TaskSearch: undefined;
-  TaskFilter: undefined;
+  TaskFilter:
+    | {
+        category?: string;
+        category_id?: string;
+        q?: string;
+        city?: string;
+        budget_min?: string;
+        budget_max?: string;
+      }
+    | undefined;
   TaskDetail: { taskId: string };
   TaskApply: { taskId: string; title?: string };
   CreateTask: undefined;
@@ -37,6 +46,14 @@ export type MainTabParamList = {
   Wallet: undefined;
   Chats: undefined;
   Profile: undefined;
+};
+
+export type TasksStackParamList = {
+  TasksHome: undefined;
+  Map: RootStackParamList["Map"];
+  TasksList: RootStackParamList["TasksList"];
+  TaskSearch: undefined;
+  TaskFilter: RootStackParamList["TaskFilter"];
 };
 
 export type AuthStackParamList = {

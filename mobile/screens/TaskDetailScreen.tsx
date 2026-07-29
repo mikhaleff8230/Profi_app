@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  InteractionManager,
   ScrollView,
   StyleSheet,
   Text,
@@ -54,10 +55,16 @@ type DetailRow = {
 
 function TaskInlineMap({ task }: { task: Task }) {
   const webRef = useRef<WebView>(null);
+  const [canLoadMap, setCanLoadMap] = useState(false);
   const apiKey = yandexMapsApiKey();
   const html = useMemo(() => (apiKey ? buildYandexMapShellHtml(apiKey) : ""), [apiKey]);
   const lat = Number(task.lat);
   const lng = Number(task.lng);
+
+  useEffect(() => {
+    const interaction = InteractionManager.runAfterInteractions(() => setCanLoadMap(true));
+    return () => interaction.cancel();
+  }, []);
 
   const injectPoint = useCallback(() => {
     if (!webRef.current || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -84,6 +91,14 @@ function TaskInlineMap({ task }: { task: Task }) {
       <View style={styles.mapPlaceholder}>
         <Ionicons name="map-outline" size={28} color={colors.neutral400} />
         <Text style={styles.mapPlaceholderText}>Ключ Яндекс.Карт не задан</Text>
+      </View>
+    );
+  }
+
+  if (!canLoadMap) {
+    return (
+      <View style={styles.mapPlaceholder}>
+        <ActivityIndicator color={colors.neutral400} />
       </View>
     );
   }
@@ -200,27 +215,23 @@ export default function TaskDetailScreen() {
       const data = await apiFetch(`/tasks/${taskId}`, { method: "GET" });
       setTask(data as Task);
       setLoadError(null);
+      // The task itself is enough to render the screen. Role-specific data is
+      // loaded below without keeping the user behind a full-screen spinner.
+      setLoading(false);
       if (user?.role === "customer" && String(data.customer_id) === String(user.id)) {
-        try {
-          const a = await apiFetch(`/tasks/${taskId}/applications`, { method: "GET" });
-          setApps(Array.isArray(a) ? a : []);
-        } catch {
-          setApps([]);
-        }
+        await apiFetch(`/tasks/${taskId}/applications`, { method: "GET" })
+          .then((a) => setApps(Array.isArray(a) ? a : []))
+          .catch(() => setApps([]));
       } else setApps([]);
       if (user?.role === "specialist") {
-        try {
-          const si = await apiFetch(`/tasks/${taskId}/specialist-info`, { method: "GET" });
-          setSpecInfo(si);
-        } catch {
-          setSpecInfo(null);
-        }
-        try {
-          const preview = await apiFetch(`/tasks/${taskId}/applications/preview`, { method: "GET" });
-          setApplyPreview(preview as ApplicationPreview);
-        } catch {
-          setApplyPreview(null);
-        }
+        await Promise.all([
+          apiFetch(`/tasks/${taskId}/specialist-info`, { method: "GET" })
+            .then(setSpecInfo)
+            .catch(() => setSpecInfo(null)),
+          apiFetch(`/tasks/${taskId}/applications/preview`, { method: "GET" })
+            .then((preview) => setApplyPreview(preview as ApplicationPreview))
+            .catch(() => setApplyPreview(null)),
+        ]);
       } else {
         setSpecInfo(null);
         setApplyPreview(null);

@@ -21,6 +21,7 @@ type TaskForm = {
   description: string;
   category: string;
   city: string;
+  location_id: string;
   address: string;
   lat: string;
   lng: string;
@@ -42,6 +43,7 @@ const emptyTaskForm: TaskForm = {
   description: '',
   category: '',
   city: 'Москва',
+  location_id: '',
   address: '',
   lat: '',
   lng: '',
@@ -109,6 +111,7 @@ export default function ProffiTasks() {
       description: task.description || '',
       category: task.category_id || task.category || '',
       city: task.city || 'Москва',
+      location_id: task.location_id != null ? String(task.location_id) : '',
       address: task.address || '',
       lat: task.lat != null ? String(task.lat) : '',
       lng: task.lng != null ? String(task.lng) : '',
@@ -270,7 +273,12 @@ export default function ProffiTasks() {
           <option value="done">Готово</option>
           <option value="cancelled">Отменен</option>
         </select>
-        <RussiaCityInput value={form.city} onChange={(city) => setForm({ ...form, city })} required />
+        <RussiaCityInput
+          value={form.city}
+          onChange={(city) => setForm((current) => ({ ...current, city, location_id: '', lat: '', lng: '' }))}
+          onSelect={(city) => setForm((current) => ({ ...current, city: city.name_ru || city.name || current.city, location_id: String(city.id) }))}
+          required
+        />
         <div className="md:col-span-2">
           <YandexAddressSuggest
             value={form.address}

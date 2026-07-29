@@ -1,0 +1,19 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "production": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://api.treabo.ru",
+        "EXPO_PUBLIC_YANDEX_MAPS_API_KEY": "ba1368db-30d3-4251-9279-2888ad44bb4c"
+      }
+    }
+  }
+}

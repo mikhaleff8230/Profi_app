@@ -37,6 +37,7 @@ type Stats = {
   open_tasks?: number;
   in_progress?: number;
 };
+type ServiceCategory = { id: string | number; name_ru: string };
 
 type IdentityStatus = "not_submitted" | "pending" | "approved" | "rejected";
 
@@ -63,10 +64,12 @@ export default function ProfileScreen() {
   const [identityStatus, setIdentityStatus] = useState<IdentityStatus>("not_submitted");
   const [editingBio, setEditingBio] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const [editingServices, setEditingServices] = useState(false);
   const [bio, setBio] = useState("");
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
-  const [services, setServices] = useState("");
+  const [services, setServices] = useState<string[]>([]);
+  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,6 +79,9 @@ export default function ProfileScreen() {
       .then(setStats)
       .catch(() => setStats(null));
     fetchAccountSummary().then(setAccount).catch(() => setAccount(null));
+    apiFetch("/categories", { method: "GET" })
+      .then((data) => setServiceCategories(Array.isArray(data) ? data : []))
+      .catch(() => setServiceCategories([]));
     apiFetch("/identity-verification", { method: "GET" })
       .then((data) => {
         const status = data?.status as IdentityStatus | undefined;
@@ -89,7 +95,7 @@ export default function ProfileScreen() {
       setBio(user.bio || "");
       setName(user.name || "");
       setCity(user.city || "");
-      setServices((user.services || []).join(", "));
+      setServices(user.services || []);
       setPortfolio(user.portfolio || []);
     }
   }, [user]);
@@ -137,11 +143,31 @@ export default function ProfileScreen() {
       const body: Record<string, unknown> = {
         name,
         city,
-        services: services.split(",").map((s) => s.trim()).filter(Boolean),
       };
       const data = await apiFetch("/auth/profile", { method: "PATCH", body: JSON.stringify(body) });
       setUser(data as User);
       setEditingName(false);
+      Alert.alert(t("success"));
+    } catch (e: unknown) {
+      Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleService = (service: string) => {
+    setServices((current) => current.includes(service) ? current.filter((item) => item !== service) : [...current, service]);
+  };
+
+  const saveServices = async () => {
+    setSaving(true);
+    try {
+      const data = await apiFetch("/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ services }),
+      });
+      setUser(data as User);
+      setEditingServices(false);
       Alert.alert(t("success"));
     } catch (e: unknown) {
       Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
@@ -285,7 +311,15 @@ export default function ProfileScreen() {
 
         {!editingName ? (
           <View style={styles.nameRow}>
-            <Text style={styles.nameBig}>{user.name}</Text>
+            <View style={styles.nameContent}>
+              <Text style={styles.nameBig}>{user.name}</Text>
+              {user.city ? (
+                <View style={styles.cityRow}>
+                  <Ionicons name="location-outline" size={16} color={colors.neutral500} />
+                  <Text style={styles.cityText}>{user.city}</Text>
+                </View>
+              ) : null}
+            </View>
             <TouchableOpacity style={styles.iconBtn} onPress={() => setEditingName(true)}>
               <Ionicons name="pencil" size={18} color={colors.black} />
             </TouchableOpacity>
@@ -306,15 +340,6 @@ export default function ProfileScreen() {
               placeholder={t("city_placeholder")}
               placeholderTextColor={colors.neutral400}
             />
-            {isSpecialist && (
-              <TextInput
-                style={styles.input}
-                value={services}
-                onChangeText={setServices}
-                placeholder={t("services")}
-                placeholderTextColor={colors.neutral400}
-              />
-            )}
             <View style={styles.editActions}>
               <PrimaryButton title={t("cancel")} variant="secondary" fullWidth={false} style={styles.half} onPress={() => setEditingName(false)} />
               <PrimaryButton title={t("save")} fullWidth={false} style={styles.half} onPress={saveName} loading={saving} />
@@ -406,16 +431,39 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {isSpecialist && user.services && user.services.length > 0 && (
+        {isSpecialist && (
           <View style={styles.services}>
-            <Text style={styles.servicesCaps}>{t("services")}</Text>
-            <View style={styles.chips}>
-              {user.services.map((s, i) => (
-                <View key={i} style={styles.chip}>
-                  <Text style={styles.chipText}>{s}</Text>
-                </View>
-              ))}
+            <View style={styles.servicesHead}>
+              <Text style={styles.servicesCaps}>{t("services")}</Text>
+              <TouchableOpacity style={styles.iconBtn} onPress={() => { setServices(user.services || []); setEditingServices(true); }}>
+                <Ionicons name="pencil" size={16} color={colors.black} />
+              </TouchableOpacity>
             </View>
+            {editingServices ? (
+              <View style={styles.editBlock}>
+                <View style={styles.chips}>
+                  {serviceCategories.map((category) => {
+                    const selected = services.includes(category.name_ru);
+                    return (
+                      <TouchableOpacity key={String(category.id)} style={[styles.serviceChoice, selected && styles.serviceChoiceSelected]} onPress={() => toggleService(category.name_ru)}>
+                        <Ionicons name={selected ? "checkmark-circle" : "add-circle-outline"} size={17} color={colors.black} />
+                        <Text style={styles.chipText}>{category.name_ru}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View style={styles.editActions}>
+                  <PrimaryButton title={t("cancel")} variant="secondary" fullWidth={false} style={styles.half} onPress={() => setEditingServices(false)} />
+                  <PrimaryButton title={t("save")} fullWidth={false} style={styles.half} onPress={saveServices} loading={saving} />
+                </View>
+              </View>
+            ) : user.services?.length ? (
+              <View style={styles.chips}>
+                {user.services.map((service) => <View key={service} style={styles.chip}><Text style={styles.chipText}>{service}</Text></View>)}
+              </View>
+            ) : (
+              <Text style={styles.bioText}>Выберите услуги, которые вы выполняете</Text>
+            )}
           </View>
         )}
 
@@ -440,12 +488,6 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {user.city ? (
-          <View style={styles.footerMeta}>
-            <Ionicons name="location-outline" size={16} color={colors.neutral500} />
-            <Text style={styles.footerText}>{user.city}</Text>
-          </View>
-        ) : null}
       </ScrollView>
     </TabScreenLayout>
   );
@@ -525,7 +567,10 @@ const styles = StyleSheet.create({
   ratingSub: { fontSize: 14, color: colors.neutral700 },
   ratingMuted: { fontSize: 14, color: colors.neutral400 },
   nameRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
-  nameBig: { flex: 1, fontSize: 28, fontWeight: "800", lineHeight: 34, color: colors.black },
+  nameContent: { flex: 1, paddingRight: 10 },
+  nameBig: { fontSize: 28, fontWeight: "800", lineHeight: 34, color: colors.black },
+  cityRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5 },
+  cityText: { fontSize: 14, color: colors.neutral500 },
   verifiedPill: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -573,10 +618,13 @@ const styles = StyleSheet.create({
   editActions: { flexDirection: "row", gap: 10, marginTop: 8 },
   half: { flex: 1 },
   services: { marginBottom: 20 },
+  servicesHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   servicesCaps: { fontSize: 12, fontWeight: "600", color: colors.neutral400, textTransform: "uppercase", marginBottom: 8 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { backgroundColor: colors.lavender100, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.full },
   chipText: { fontSize: 14, fontWeight: "600" },
+  serviceChoice: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.lavender50, paddingHorizontal: 12, paddingVertical: 9, borderRadius: radii.full, borderWidth: 1, borderColor: colors.neutral100 },
+  serviceChoiceSelected: { backgroundColor: "#D9F36B", borderColor: "#D9F36B" },
   portfolioHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   addPortfolioBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.lavender50, alignItems: "center", justifyContent: "center" },
   portfolioTrack: { gap: 10 },

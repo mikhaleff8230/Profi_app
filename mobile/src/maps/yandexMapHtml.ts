@@ -73,13 +73,15 @@ export function buildYandexMapShellHtml(apiKey: string): string {
       html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f3ff; }
       .plaque {
+        box-sizing: border-box;
+        width: 148px;
+        min-height: 46px;
         background: #232323;
         color: #fff;
         padding: 7px 9px;
         border-radius: 10px;
         cursor: pointer;
         box-shadow: 0 6px 16px rgba(0,0,0,0.18);
-        max-width: 176px;
         font-family: inherit;
         font-size: 11px;
         font-weight: 400;
@@ -90,6 +92,11 @@ export function buildYandexMapShellHtml(apiKey: string): string {
       .plaque-title { font-size: 11px; font-weight: 500; margin-top: 3px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
       .plaque-location { font-size: 10px; font-weight: 400; margin-top: 3px; line-height: 1.25; opacity: 0.78; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .plaque-cta { font-size: 10px; font-weight: 400; margin-top: 4px; opacity: 0.65; }
+      .cluster {
+        width: 44px; height: 44px; border-radius: 50%; background: #D9F36B; color: #232323;
+        border: 3px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.24); display: flex;
+        align-items: center; justify-content: center; box-sizing: border-box; font-size: 15px; font-weight: 800;
+      }
     </style>
     <script src="${scriptSrc}"></script>
   </head>
@@ -119,22 +126,35 @@ export function buildYandexMapShellHtml(apiKey: string): string {
       function createPlaqueLayout(ymaps) {
         return ymaps.templateLayoutFactory.createClass(
           '<div class="plaque {{ properties.activeClass }}">' +
-            '{{ properties.photoBlock }}' +
             '<div class="plaque-price">{{ properties.priceLabel }}</div>' +
             '<div class="plaque-title">{{ properties.title }}</div>' +
-            '{{ properties.locationBlock }}' +
             '<div class="plaque-cta">Открыть задание →</div>' +
           '</div>'
         );
       }
+      function createClusterLayout(ymaps) {
+        return ymaps.templateLayoutFactory.createClass('<div class="cluster">{{ properties.geoObjects.length }}</div>');
+      }
       window.__proffiMap = {
         map: null,
         placemarks: {},
+        clusterer: null,
         layout: null,
+        didFitBounds: false,
         init: function () {
           var self = this;
           ymaps.ready(function () {
             self.layout = createPlaqueLayout(ymaps);
+            self.clusterer = new ymaps.Clusterer({
+              clusterDisableClickZoom: false,
+              clusterOpenBalloonOnClick: false,
+              groupByCoordinates: false,
+              gridSize: 96,
+              hasBalloon: false,
+              hasHint: false,
+              clusterIconLayout: createClusterLayout(ymaps),
+              clusterIconShape: { type: 'Circle', coordinates: [22, 22], radius: 24 }
+            });
             self.map = new ymaps.Map('map', {
               center: [${MOSCOW_CENTER.lat}, ${MOSCOW_CENTER.lng}],
               zoom: 10,
@@ -144,8 +164,19 @@ export function buildYandexMapShellHtml(apiKey: string): string {
               if (!self.map) return;
               post('boundschange', readBounds(self.map));
             };
+            // actionend fires once after pan/zoom. Listening to boundschange as
+            // well produced an event loop in React Native while the map was
+            // fitting clusters and resizing its viewport.
             self.map.events.add('actionend', emitBounds);
-            self.map.events.add('boundschange', emitBounds);
+            self.clusterer.events.add('click', function (event) {
+              var target = event.get('target');
+              if (!target || typeof target.getGeoObjects !== 'function') return;
+              var objects = target.getGeoObjects();
+              if (!objects || objects.length < 2) return;
+              var bounds = ymaps.geoQuery(objects).getBounds();
+              if (bounds) self.map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 48, duration: 250 });
+            });
+            self.map.geoObjects.add(self.clusterer);
             window.addEventListener('resize', function () {
               if (!self.map) return;
               self.map.container.fitToViewport();
@@ -158,9 +189,7 @@ export function buildYandexMapShellHtml(apiKey: string): string {
         updatePoints: function (points, highlightedId) {
           var self = this;
           if (!self.map || !self.layout) return;
-          Object.keys(self.placemarks).forEach(function (id) {
-            self.map.geoObjects.remove(self.placemarks[id]);
-          });
+          self.clusterer.removeAll();
           self.placemarks = {};
           (points || []).forEach(function (point) {
             var active = highlightedId && String(highlightedId) === String(point.id);
@@ -184,25 +213,27 @@ export function buildYandexMapShellHtml(apiKey: string): string {
               iconImageSize: [1, 1],
               iconImageOffset: [0, 0],
               iconContentLayout: self.layout,
-              iconContentOffset: [-88, -72],
-              iconContentSize: [176, 120],
+              iconContentOffset: [-74, -54],
+              iconContentSize: [148, 54],
+              iconShape: { type: 'Rectangle', coordinates: [[-74, -54], [74, 0]] },
               zIndex: active ? 1000 : 1
             });
             placemark.events.add('click', function () {
               post('select', { id: point.id });
             });
-            self.map.geoObjects.add(placemark);
+            self.clusterer.add(placemark);
             self.placemarks[point.id] = placemark;
           });
-          if (points && points.length === 1 && !highlightedId) {
+          if (!self.didFitBounds && points && points.length === 1 && !highlightedId) {
             self.map.setCenter([points[0].lat, points[0].lng], 13);
-          } else if (points && points.length > 1 && !highlightedId) {
-            var collection = new ymaps.GeoObjectCollection();
-            points.forEach(function (p) { collection.add(self.placemarks[p.id]); });
-            var bounds = collection.getBounds();
+            self.didFitBounds = true;
+          } else if (!self.didFitBounds && points && points.length > 1 && !highlightedId) {
+            var bounds = self.clusterer.getBounds();
             if (bounds) self.map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 48 });
+            self.didFitBounds = true;
           }
-          if (self.map) self.map.container.fitToViewport();
+          // Do not fit the viewport on every React points update: it emits map
+          // bounds events and used to recreate the same black marker forever.
         },
         setCenter: function (lat, lng, zoom) {
           if (!this.map) return;

@@ -104,12 +104,6 @@ export const siteSettings = {
         permissions: adminOnly,
       },
       {
-        href: Routes.proffi.filters,
-        label: 'Treabo фильтры',
-        icon: 'AttributeIcon',
-        permissions: adminOnly,
-      },
-      {
         href: Routes.proffi.responseSettings,
         label: 'Treabo настройки откликов',
         icon: 'DiaryIcon',

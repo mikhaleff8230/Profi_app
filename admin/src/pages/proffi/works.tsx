@@ -200,12 +200,12 @@ export default function TreaboWorks() {
           </label>
 
           <label className="grid gap-1 text-sm">
-            <span>Slug</span>
+            <span>ЧПУ (slug)</span>
             <input
               className={fieldClass()}
               value={form.slug}
               onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              placeholder="tile-work"
+              placeholder="Создастся автоматически из названия"
             />
           </label>
 

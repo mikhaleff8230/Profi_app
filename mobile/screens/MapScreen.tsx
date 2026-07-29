@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
+  PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -36,11 +38,15 @@ type TaskWithGeo = TaskItem & { lat?: number | null; lng?: number | null };
 export default function MapScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, "Map">>();
   const route = useRoute<R>();
-  const filter = route.params || {};
+  const filter = route.params;
   const { t } = useLang();
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
   const listRef = useRef<FlatList<TaskWithGeo>>(null);
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const sheetStartY = useRef(0);
+  const sheetExpanded = useRef(false);
+  const [screenHeight, setScreenHeight] = useState(0);
   const [tasks, setTasks] = useState<TaskWithGeo[]>([]);
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -51,32 +57,72 @@ export default function MapScreen() {
   const [webviewReady, setWebviewReady] = useState(false);
   const apiKey = yandexMapsApiKey();
   const shellHtml = useMemo(() => (apiKey ? buildYandexMapShellHtml(apiKey) : ""), [apiKey]);
+  const collapsedSheetY = screenHeight * 0.58;
+
+  const snapSheet = useCallback((expanded: boolean) => {
+    sheetExpanded.current = expanded;
+    Animated.spring(sheetTranslateY, {
+      toValue: expanded ? 0 : collapsedSheetY,
+      useNativeDriver: true,
+      damping: 24,
+      stiffness: 230,
+      mass: 0.8,
+    }).start();
+  }, [collapsedSheetY, sheetTranslateY]);
+
+  useEffect(() => {
+    if (!screenHeight) return;
+    sheetTranslateY.setValue(sheetExpanded.current ? 0 : collapsedSheetY);
+  }, [collapsedSheetY, screenHeight, sheetTranslateY]);
+
+  const sheetPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 3,
+    onPanResponderGrant: () => {
+      sheetTranslateY.stopAnimation((value) => {
+        sheetStartY.current = value;
+      });
+    },
+    onPanResponderMove: (_, gesture) => {
+      const nextY = Math.max(0, Math.min(collapsedSheetY, sheetStartY.current + gesture.dy));
+      sheetTranslateY.setValue(nextY);
+    },
+    onPanResponderRelease: (_, gesture) => {
+      const projectedY = sheetStartY.current + gesture.dy + gesture.vy * 90;
+      snapSheet(projectedY < collapsedSheetY / 2);
+    },
+    onPanResponderTerminate: (_, gesture) => {
+      snapSheet(sheetStartY.current + gesture.dy < collapsedSheetY / 2);
+    },
+  }), [collapsedSheetY, sheetTranslateY, snapSheet]);
 
   const taskFilters = useMemo<TaskFilters>(
     () => ({
-      category: filter.category,
-      category_id: filter.category_id,
-      q: filter.q,
-      city: filter.city,
-      budget_min: filter.budget_min,
-      budget_max: filter.budget_max,
+      category: filter?.category,
+      category_id: filter?.category_id,
+      q: filter?.q,
+      city: filter?.city,
+      budget_min: filter?.budget_min,
+      budget_max: filter?.budget_max,
       lat: coords?.lat,
       lng: coords?.lng,
       sort: coords ? "distance" : undefined,
     }),
-    [filter, coords]
+    [filter?.category, filter?.category_id, filter?.q, filter?.city, filter?.budget_min, filter?.budget_max, coords]
   );
+
+  useEffect(() => {
+    apiFetch("/categories", { method: "GET" })
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .catch(() => setCategories([]));
+  }, []);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const qs = buildTaskQueryParams(taskFilters);
-      const [catData, taskData] = await Promise.all([
-        apiFetch("/categories", { method: "GET" }),
-        apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" }),
-      ]);
-      setCategories(Array.isArray(catData) ? catData : []);
+      const taskData = await apiFetch(qs ? `/tasks?${qs}` : "/tasks", { method: "GET" });
       setTasks(Array.isArray(taskData) ? (taskData as TaskWithGeo[]) : []);
       setSelectedId(null);
     } catch (e: unknown) {
@@ -129,7 +175,13 @@ export default function MapScreen() {
       if (message.type === "ready") setWebviewReady(true);
       if (message.type === "boundschange") {
         const next = parseMapBounds(message.payload || {});
-        if (next) setBounds(next);
+        if (next) setBounds((current) => {
+          if (current && Math.abs(current.sw_lat - next.sw_lat) < 0.00001 &&
+            Math.abs(current.sw_lng - next.sw_lng) < 0.00001 &&
+            Math.abs(current.ne_lat - next.ne_lat) < 0.00001 &&
+            Math.abs(current.ne_lng - next.ne_lng) < 0.00001) return current;
+          return next;
+        });
       }
       if (message.type === "select" && message.payload?.id != null) {
         setSelectedId(String(message.payload.id));
@@ -140,16 +192,19 @@ export default function MapScreen() {
   };
 
   const navFilters = {
-    category: filter.category,
-    category_id: filter.category_id,
-    q: filter.q,
-    city: filter.city,
-    budget_min: filter.budget_min,
-    budget_max: filter.budget_max,
+    category: filter?.category,
+    category_id: filter?.category_id,
+    q: filter?.q,
+    city: filter?.city,
+    budget_min: filter?.budget_min,
+    budget_max: filter?.budget_max,
   };
 
   return (
-    <View style={styles.root}>
+    <View
+      style={styles.root}
+      onLayout={(event) => setScreenHeight(event.nativeEvent.layout.height)}
+    >
       <View style={styles.mapPane}>
         {apiKey ? (
           <WebView
@@ -172,7 +227,7 @@ export default function MapScreen() {
         <SafeAreaView style={styles.overlay} edges={["top"]} pointerEvents="box-none">
           <View style={styles.toggleRow}>
             <View style={styles.segment}>
-              <TouchableOpacity style={styles.segmentBtn} onPress={() => navigation.navigate("TasksList", navFilters)}>
+              <TouchableOpacity style={styles.segmentBtn} onPress={() => navigation.replace("TasksList", navFilters)}>
                 <Text style={styles.segmentInactive}>{t("list_view")}</Text>
               </TouchableOpacity>
               <View style={styles.segmentActive}>
@@ -193,14 +248,27 @@ export default function MapScreen() {
         )}
       </View>
 
-      <View style={[styles.listPane, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={styles.listHead}>
-          <Ionicons name="list-outline" size={18} color={colors.black} />
-          <Text style={styles.listHeadTitle}>{t("tasks_in_view")}</Text>
-          <Text style={styles.listHeadCount}>
-            {visibleTasks.length}
-            {mapPoints.length ? ` / ${mapPoints.length}` : ""}
-          </Text>
+      <Animated.View
+        style={[
+          styles.listPane,
+          {
+            height: screenHeight || undefined,
+            paddingBottom: Math.max(insets.bottom, 12),
+            opacity: screenHeight ? 1 : 0,
+            transform: [{ translateY: sheetTranslateY }],
+          },
+        ]}
+      >
+        <View style={styles.sheetDragArea} {...sheetPanResponder.panHandlers}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.listHead}>
+            <Ionicons name="list-outline" size={18} color={colors.black} />
+            <Text style={styles.listHeadTitle}>{t("tasks_in_view")}</Text>
+            <Text style={styles.listHeadCount}>
+              {visibleTasks.length}
+              {mapPoints.length ? ` / ${mapPoints.length}` : ""}
+            </Text>
+          </View>
         </View>
 
         {error ? (
@@ -236,16 +304,19 @@ export default function MapScreen() {
             onScrollToIndexFailed={() => undefined}
           />
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
-  mapPane: { flex: 0.58, backgroundColor: colors.lavender50 },
+  mapPane: { flex: 1, backgroundColor: colors.lavender50 },
   listPane: {
-    flex: 0.42,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
     backgroundColor: colors.lavender50,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -253,6 +324,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 8,
+    overflow: "hidden",
   },
   overlay: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 2 },
   toggleRow: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
@@ -308,12 +380,20 @@ const styles = StyleSheet.create({
   },
   missingTitle: { ...typography.headline },
   missingText: { ...typography.small, color: colors.neutral500, textAlign: "center" },
+  sheetDragArea: { paddingTop: 8 },
+  sheetHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.neutral300,
+    alignSelf: "center",
+  },
   listHead: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingHorizontal: spacing.xl,
-    paddingTop: 14,
+    paddingTop: 8,
     paddingBottom: 8,
   },
   listHeadTitle: { fontSize: 14, fontWeight: "700", flex: 1 },

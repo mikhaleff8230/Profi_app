@@ -159,6 +159,24 @@ export default function ProffiAiChatPage() {
 
       {error ? <ProffiError message={error} /> : null}
 
+      <div className="mb-6 rounded border border-blue-200 bg-blue-50 p-5 text-sm leading-6 text-blue-950">
+        <div className="font-semibold">Как эта страница влияет на AI-помощника</div>
+        <p className="mt-2">
+          Все активные записи типа «Инструкция» добавляются к системным правилам при каждом AI-анализе заявки.
+          Изменения начинают действовать сразу, без обновления кода.
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>Название — понятная метка для администратора, AI его не использует.</li>
+          <li>Текст для AI — короткое однозначное правило: что уточнить, как классифицировать или чего не делать.</li>
+          <li>Категория — необязательный ID/slug категории. Оставьте пустой, чтобы правило работало для всех заявок.</li>
+          <li>Порядок — меньшие значения добавляются раньше. Противоречащие друг другу правила лучше не создавать.</li>
+          <li>Категории, работы и вопросы берутся из соответствующих справочников, дублировать их здесь не нужно.</li>
+        </ul>
+        <div className="mt-3 rounded bg-white/70 px-3 py-2">
+          Пример: «Если клиент просит ремонт унитаза, уточни: течёт ли вода и требуется ли замена унитаза целиком. Не придумывай размеры помещения».
+        </div>
+      </div>
+
       <div className="mb-8 grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
         <form onSubmit={submit} className="rounded border border-border-200 bg-light p-5">
           <div className="mb-4 flex items-center justify-between">
@@ -173,11 +191,12 @@ export default function ProffiAiChatPage() {
           <div className="space-y-4">
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase text-body">Тип</span>
-              <select className={fieldClass()} value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as AiKnowledgeType })}>
+              <select className={fieldClass()} value={form.type} disabled>
                 {types.map((type) => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
+              <span className="mt-1 block text-xs text-body">Новые записи создаются как инструкции. Остальные типы — старые данные и в AI не передаются.</span>
             </label>
 
             <label className="block">
@@ -186,10 +205,6 @@ export default function ProffiAiChatPage() {
             </label>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase text-body">Slug</span>
-                <input className={fieldClass()} value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} placeholder="tile-work" />
-              </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold uppercase text-body">Порядок</span>
                 <input className={fieldClass()} type="number" value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: Number(event.target.value) })} />
@@ -201,20 +216,11 @@ export default function ProffiAiChatPage() {
                 <span className="mb-1 block text-xs font-semibold uppercase text-body">Категория</span>
                 <input className={fieldClass()} value={form.category_slug} onChange={(event) => setForm({ ...form, category_slug: event.target.value })} placeholder="bathroom-renovation" />
               </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase text-body">Работа</span>
-                <input className={fieldClass()} value={form.work_slug} onChange={(event) => setForm({ ...form, work_slug: event.target.value })} placeholder="tile-work" />
-              </label>
             </div>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase text-body">Текст для AI</span>
               <textarea className={`${fieldClass()} min-h-[120px]`} value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} placeholder="Что AI должен знать или спросить по этой записи" />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase text-body">Payload JSON</span>
-              <textarea className={`${fieldClass()} min-h-[90px] font-mono`} value={form.payload} onChange={(event) => setForm({ ...form, payload: event.target.value })} placeholder='{"field":"area","required":true}' />
             </label>
 
             <label className="flex items-center gap-2 text-sm text-heading">

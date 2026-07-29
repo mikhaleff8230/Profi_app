@@ -71,7 +71,7 @@ export default function PhoneAuthScreen() {
 
   const registerFallback = async () => {
     const cleanEmail = email.trim().toLowerCase();
-    const data = await apiFetch("/auth/register-phone", {
+    const data = await apiFetch(`/auth/${role}/register-phone`, {
       method: "POST",
       body: JSON.stringify({
         phone: apiPhone,
@@ -116,7 +116,7 @@ export default function PhoneAuthScreen() {
         email: cleanEmail,
       };
       try {
-        const data = await apiFetch("/auth/phone/send-otp", {
+      const data = await apiFetch(`/auth/${role}/phone/send-otp`, {
           method: "POST",
           body: JSON.stringify(payload),
           auth: false,
@@ -153,7 +153,7 @@ export default function PhoneAuthScreen() {
     }
     setBusy(true);
     try {
-      const data = await apiFetch("/auth/phone/verify-otp", {
+      const data = await apiFetch(`/auth/${role}/phone/verify-otp`, {
         method: "POST",
         body: JSON.stringify({
           phone: apiPhone,

@@ -5,14 +5,13 @@ import Description from '@/components/ui/description';
 import FileInput from '@/components/ui/file-input';
 import Loader from '@/components/ui/loader/loader';
 import Button from '@/components/ui/button';
-import { useSettingsQuery, useUpdateSettingsMutation } from '@/data/settings';
+import { getProffiAdmin, putProffiAdmin } from '@/data/proffi-admin';
 import { siteSettings } from '@/settings/site.settings';
 import { adminOnly } from '@/utils/auth-utils';
 import { getFormattedImage } from '@/utils/get-formatted-image';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useTranslation } from 'next-i18next';
-import { useRouter } from 'next/router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 type BrandingForm = {
@@ -20,15 +19,15 @@ type BrandingForm = {
   dark_logo: ReturnType<typeof getFormattedImage>;
 };
 
+type BrandingSettings = BrandingForm;
+
 export default function TreaboBrandingSettingsPage() {
   const { t } = useTranslation();
-  const { locale } = useRouter();
-  const { settings, loading, error } = useSettingsQuery({ language: locale! });
-  const { mutate: updateSettings, isLoading: saving } = useUpdateSettingsMutation();
-
-  const options = settings?.options ?? {};
-  const uploadMaxFilesizeKb =
-    options?.server_info?.upload_max_filesize ?? 2048;
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  const uploadMaxFilesizeKb = 20480;
   const uploadMaxFilesizeMb = uploadMaxFilesizeKb / 1024;
   const maxFileSize = uploadMaxFilesizeKb * 1000;
 
@@ -39,38 +38,49 @@ export default function TreaboBrandingSettingsPage() {
     watch,
   } = useForm<BrandingForm>({
     defaultValues: {
-      logo: getFormattedImage(options?.logo),
-      dark_logo: getFormattedImage(options?.dark_logo),
+      logo: null,
+      dark_logo: null,
     },
   });
 
   useEffect(() => {
-    reset({
-      logo: getFormattedImage(options?.logo),
-      dark_logo: getFormattedImage(options?.dark_logo),
-    });
-  }, [options?.logo, options?.dark_logo, reset]);
+    getProffiAdmin<BrandingSettings>('/api/admin/branding-settings')
+      .then((data) => {
+        reset({
+          logo: getFormattedImage(data.logo || undefined),
+          dark_logo: getFormattedImage(data.dark_logo || undefined),
+        });
+      })
+      .catch((requestError) => setError(requestError.response?.data?.message || requestError.message))
+      .finally(() => setLoading(false));
+  }, [reset]);
 
   const logoPreview = watch('logo');
   const darkLogoPreview = watch('dark_logo');
 
-  const onSubmit = (values: BrandingForm) => {
-    updateSettings({
-      language: locale,
-      options: {
-        ...options,
-        logo: values.logo,
-        dark_logo: values.dark_logo,
-      },
-    });
+  const onSubmit = async (values: BrandingForm) => {
+    setSaving(true);
+    setSaved(false);
+    setError('');
+    try {
+      const result = await putProffiAdmin<BrandingSettings>('/api/admin/branding-settings', {
+        logo: values.logo || null,
+        dark_logo: values.dark_logo || null,
+      });
+      reset({
+        logo: getFormattedImage(result.logo || undefined),
+        dark_logo: getFormattedImage(result.dark_logo || undefined),
+      });
+      setSaved(true);
+    } catch (requestError: any) {
+      setError(requestError.response?.data?.message || requestError.response?.data?.detail || requestError.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
     return <Loader text={t('common:text-loading')} />;
-  }
-
-  if (error) {
-    return <ProffiError message={error.message} />;
   }
 
   const logoHelp = (
@@ -91,6 +101,12 @@ export default function TreaboBrandingSettingsPage() {
         title="Treabo — логотип"
         subtitle="Загрузите логотип для мобильного приложения и витрины. Изменения сразу попадают в API /site-settings."
       />
+      {error ? <ProffiError message={error} /> : null}
+      {saved ? (
+        <div className="mb-5 max-w-3xl rounded border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">
+          Логотип сохранён и доступен сайту и приложению.
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-6">
         <Card className="p-5">
@@ -130,7 +146,7 @@ export default function TreaboBrandingSettingsPage() {
           ) : null}
         </Card>
 
-        <Button loading={saving} disabled={saving}>
+        <Button type="submit" loading={saving} disabled={saving}>
           {saving ? 'Сохранение…' : 'Сохранить логотип'}
         </Button>
       </form>

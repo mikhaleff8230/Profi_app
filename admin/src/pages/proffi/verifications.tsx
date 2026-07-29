@@ -5,6 +5,38 @@ import { adminOnly } from '@/utils/auth-utils';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useEffect, useState } from 'react';
 
+function verificationPhotoUrl(value?: string | null) {
+  if (!value) return '';
+  const apiEndpoint =
+    process.env.NEXT_PUBLIC_REST_API_ENDPOINT ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'https://api.treabo.ru';
+  const apiOrigin = (() => {
+    try {
+      return new URL(apiEndpoint).origin;
+    } catch {
+      return 'https://api.treabo.ru';
+    }
+  })();
+
+  if (/^https?:\/\//i.test(value)) {
+    return value.replace(
+      /^https:\/\/treabo\.ru\/api\/files\//i,
+      'https://api.treabo.ru/api/proffi/files/',
+    );
+  }
+  if (value.startsWith('/api/proffi/files/')) return `${apiOrigin}${value}`;
+  if (value.startsWith('/api/files/')) {
+    return `${apiOrigin}/api/proffi/files/${value.replace(/^\/api\/files\/?/, '')}`;
+  }
+  if (value.startsWith('/storage/') || value.startsWith('storage/')) {
+    return `${apiOrigin}/${value.replace(/^\/+/, '')}`;
+  }
+  return `${apiOrigin}/api/proffi/files/${value.replace(/^\/+/, '')}`;
+}
+
+const photoLabels = ['Разворот паспорта', 'Страница прописки', 'Селфи с паспортом'];
+
 export default function ProffiVerifications() {
   const [rows, setRows] = useState<ProffiVerification[]>([]);
   const [error, setError] = useState('');
@@ -77,8 +109,20 @@ export default function ProffiVerifications() {
                       {[row.passport_main_photo, row.passport_registration_photo, row.passport_selfie_photo]
                         .filter(Boolean)
                         .map((url, idx) => (
-                          <a key={idx} href={url as string} target="_blank" rel="noreferrer" className="text-accent underline text-xs">
-                            Фото {idx + 1}
+                          <a
+                            key={idx}
+                            href={verificationPhotoUrl(url)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group block w-28 text-xs font-semibold text-accent"
+                          >
+                            <img
+                              src={verificationPhotoUrl(url)}
+                              alt={photoLabels[idx]}
+                              className="mb-1 h-20 w-28 rounded border border-border-200 bg-gray-50 object-cover"
+                              loading="lazy"
+                            />
+                            <span className="group-hover:underline">{photoLabels[idx]}</span>
                           </a>
                         ))}
                       {!row.passport_main_photo && !row.passport_registration_photo && !row.passport_selfie_photo ? '-' : null}

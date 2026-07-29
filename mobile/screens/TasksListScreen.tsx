@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -14,7 +12,7 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
-import { apiFetch, fileUrl } from "../src/api";
+import { apiFetch } from "../src/api";
 import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { colors, radii, spacing } from "../src/theme";
@@ -29,8 +27,6 @@ import { buildTaskQueryParams } from "../src/utils/taskQuery";
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type R = RouteProp<RootStackParamList, "TasksList">;
 
-type Story = { id: string | number; title_ru: string; color?: string | null };
-
 export default function TasksListScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<R>();
@@ -41,7 +37,6 @@ export default function TasksListScreen() {
   const [budgetMin, setBudgetMin] = useState(route.params?.budget_min || "");
   const [budgetMax, setBudgetMax] = useState(route.params?.budget_max || "");
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [stories, setStories] = useState<Story[]>([]);
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,9 +53,6 @@ export default function TasksListScreen() {
   }, [route.params]);
 
   useEffect(() => {
-    apiFetch("/stories", { method: "GET" })
-      .then((d) => setStories(Array.isArray(d) ? d : []))
-      .catch(() => setStories([]));
     apiFetch("/categories", { method: "GET" })
       .then((d) => setCategories(Array.isArray(d) ? d : []))
       .catch(() => setCategories([]));
@@ -140,7 +132,7 @@ export default function TasksListScreen() {
             <View style={styles.segmentOn}>
               <Text style={styles.segmentOnText}>{t("list_view")}</Text>
             </View>
-            <TouchableOpacity style={styles.segmentOff} onPress={() => navigation.navigate("Map", mapParams)}>
+            <TouchableOpacity style={styles.segmentOff} onPress={() => navigation.replace("Map", mapParams)}>
               <Text style={styles.segmentOffText}>{t("map_view")}</Text>
             </TouchableOpacity>
           </View>
@@ -148,6 +140,12 @@ export default function TasksListScreen() {
 
         <View style={styles.searchRow}>
           <SearchBar value={q} onChangeText={setQ} placeholder={t("search_orders")} onSubmit={loadTasks} />
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => navigation.navigate("TaskFilter", mapParams)}
+          >
+            <Ionicons name="options-outline" size={22} color={colors.black} />
+          </TouchableOpacity>
           {user?.role === "specialist" ? (
             <TouchableOpacity
               style={[styles.iconBtn, favoritesOnly && styles.iconBtnActive]}
@@ -160,81 +158,6 @@ export default function TasksListScreen() {
             <Ionicons name="navigate-outline" size={22} color={colors.black} />
           </TouchableOpacity>
         </View>
-
-        <View style={styles.filters}>
-          <TextInput
-            style={styles.filterInput}
-            placeholder={t("city")}
-            placeholderTextColor={colors.neutral400}
-            value={city}
-            onChangeText={setCity}
-            onSubmitEditing={loadTasks}
-          />
-          <TextInput
-            style={styles.filterInput}
-            placeholder={t("budget_min")}
-            placeholderTextColor={colors.neutral400}
-            keyboardType="number-pad"
-            value={budgetMin}
-            onChangeText={(v) => setBudgetMin(v.replace(/\D/g, ""))}
-            onSubmitEditing={loadTasks}
-          />
-          <TextInput
-            style={styles.filterInput}
-            placeholder={t("budget_max")}
-            placeholderTextColor={colors.neutral400}
-            keyboardType="number-pad"
-            value={budgetMax}
-            onChangeText={(v) => setBudgetMax(v.replace(/\D/g, ""))}
-            onSubmitEditing={loadTasks}
-          />
-        </View>
-
-        {categories.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catStrip}>
-            <TouchableOpacity
-              style={[styles.catItem, !category && styles.catItemActive]}
-              onPress={() => setCategory("")}
-            >
-              <View style={styles.catIconBox}>
-                <Ionicons name="grid-outline" size={22} color={colors.black} />
-              </View>
-              <Text style={styles.catLabel}>Все</Text>
-            </TouchableOpacity>
-            {categories.map((cat) => {
-              const active = String(cat.id) === String(category);
-              const imageUri = cat.image ? fileUrl(cat.image) : null;
-              return (
-                <TouchableOpacity
-                  key={String(cat.id)}
-                  style={[styles.catItem, active && styles.catItemActive]}
-                  onPress={() => setCategory(String(cat.id))}
-                >
-                  <View style={styles.catIconBox}>
-                    {imageUri ? (
-                      <Image source={{ uri: imageUri }} style={styles.catImage} resizeMode="cover" />
-                    ) : (
-                      <Ionicons name="briefcase-outline" size={22} color={colors.black} />
-                    )}
-                  </View>
-                  <Text style={styles.catLabel} numberOfLines={2}>
-                    {cat.name_ru}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-
-        {stories.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stories}>
-            {stories.map((s) => (
-              <View key={String(s.id)} style={[styles.storyCard, { backgroundColor: s.color || colors.lavender200 }]}>
-                <Text style={styles.storyTitle}>{s.title_ru}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        )}
 
         {currentCat && (
           <Text style={styles.filterHint}>
@@ -308,45 +231,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   iconBtnActive: { backgroundColor: "#D9F36B" },
-  filters: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  filterInput: {
-    flexGrow: 1,
-    minWidth: 100,
-    backgroundColor: colors.lavender50,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-  },
-  catStrip: { paddingHorizontal: spacing.xl, gap: 12, marginBottom: spacing.lg },
-  catItem: { width: 72, alignItems: "center", gap: 6 },
-  catItemActive: { opacity: 1 },
-  catIconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.lavender100,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  catImage: { width: 56, height: 56 },
-  catLabel: { fontSize: 11, fontWeight: "600", color: colors.black, textAlign: "center", lineHeight: 14 },
-  stories: { paddingHorizontal: spacing.xl, gap: 10, marginBottom: spacing.lg },
-  storyCard: {
-    width: 120,
-    height: 140,
-    borderRadius: 24,
-    padding: 12,
-    justifyContent: "flex-end",
-  },
-  storyTitle: { fontSize: 14, fontWeight: "800", color: colors.white, lineHeight: 18 },
   filterHint: { paddingHorizontal: spacing.xl, marginBottom: 8, fontSize: 13, color: colors.neutral500 },
   list: { paddingHorizontal: spacing.xl, gap: 12 },
   loader: { marginTop: 24 },

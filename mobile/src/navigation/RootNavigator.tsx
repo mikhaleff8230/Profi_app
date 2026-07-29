@@ -29,13 +29,14 @@ import SpecialistProfileScreen from "../../screens/SpecialistProfileScreen";
 import PhoneChangeScreen from "../../screens/PhoneChangeScreen";
 import IdentityVerificationScreen from "../../screens/IdentityVerificationScreen";
 import MyReviewsScreen from "../../screens/MyReviewsScreen";
-import type { AuthStackParamList, MainTabParamList, RootStackParamList } from "./types";
+import type { AuthStackParamList, MainTabParamList, RootStackParamList, TasksStackParamList } from "./types";
 import { getTabBarStyle } from "./tabBar";
 import { fetchAccountSummary, type AccountSummary } from "../services/account";
 
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
 const AppStackNav = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const TasksStackNav = createNativeStackNavigator<TasksStackParamList>();
 
 const navTheme: Theme = {
   ...DefaultTheme,
@@ -48,6 +49,18 @@ const navTheme: Theme = {
     border: colors.neutral100,
   },
 };
+
+function TasksTab() {
+  return (
+    <TasksStackNav.Navigator screenOptions={{ headerShown: false }}>
+      <TasksStackNav.Screen name="TasksHome" component={HomeScreen} />
+      <TasksStackNav.Screen name="Map" component={MapScreen} />
+      <TasksStackNav.Screen name="TasksList" component={TasksListScreen} />
+      <TasksStackNav.Screen name="TaskSearch" component={TaskSearchScreen} />
+      <TasksStackNav.Screen name="TaskFilter" component={TaskFilterScreen} />
+    </TasksStackNav.Navigator>
+  );
+}
 
 function MainTabs() {
   const { t } = useLang();
@@ -92,7 +105,7 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: t("tab_home"), tabBarLabel: t("tab_home") }} />
+      <Tab.Screen name="Home" component={TasksTab} options={{ title: t("tab_home"), tabBarLabel: t("tab_home") }} />
       <Tab.Screen name="Wallet" component={WalletScreen} options={{ title: "Кошелек", tabBarLabel: "Кошелек" }} />
       <Tab.Screen
         name="Chats"
@@ -112,10 +125,6 @@ function LoggedInStack() {
   return (
     <AppStackNav.Navigator screenOptions={{ headerShown: false }}>
       <AppStackNav.Screen name="MainTabs" component={MainTabs} />
-      <AppStackNav.Screen name="Map" component={MapScreen} />
-      <AppStackNav.Screen name="TasksList" component={TasksListScreen} />
-      <AppStackNav.Screen name="TaskSearch" component={TaskSearchScreen} />
-      <AppStackNav.Screen name="TaskFilter" component={TaskFilterScreen} />
       <AppStackNav.Screen name="TaskDetail" component={TaskDetailScreen} />
       <AppStackNav.Screen name="TaskApply" component={TaskApplyScreen} />
       <AppStackNav.Screen name="CreateTask" component={CreateTaskScreen} />
@@ -164,7 +173,13 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer
+      theme={navTheme}
+      linking={{
+        prefixes: ["treabo://"],
+        config: { screens: { ChatDetail: "chat/:chatId" } },
+      }}
+    >
       {user ? (
         <LoggedInStack />
       ) : (

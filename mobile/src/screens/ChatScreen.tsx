@@ -3,6 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  ImageBackground,
+  Keyboard,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -56,6 +59,7 @@ export default function ChatScreen() {
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -137,6 +141,20 @@ export default function ChatScreen() {
   }, [list.length]);
 
   useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+      requestAnimationFrame(() => scrollToEnd(false));
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [scrollToEnd]);
+
+  useEffect(() => {
     scrollToEnd(false);
   }, [list.length, scrollToEnd]);
 
@@ -185,21 +203,28 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior="padding"
-        keyboardVerticalOffset={keyboardVerticalOffset}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? keyboardVerticalOffset : 0}
       >
-        <FlatList
-          ref={listRef}
-          style={styles.list}
-          data={list}
-          keyExtractor={(m) => String(m.id)}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          onContentSizeChange={() => scrollToEnd(false)}
-          ListEmptyComponent={<Text style={styles.empty}>{t("no_messages")}</Text>}
-        />
+        <ImageBackground
+          source={require("../../assets/chat-wallpaper.png")}
+          style={styles.wallpaper}
+          imageStyle={styles.wallpaperImage}
+          resizeMode="cover"
+        >
+          <FlatList
+            ref={listRef}
+            style={styles.list}
+            data={list}
+            keyExtractor={(m) => String(m.id)}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            onContentSizeChange={() => scrollToEnd(false)}
+            ListEmptyComponent={<Text style={styles.empty}>{t("no_messages")}</Text>}
+          />
+        </ImageBackground>
 
         <KeyboardStickyView offset={{ closed: insets.bottom, opened: 0 }}>
           <ChatInput
@@ -208,6 +233,7 @@ export default function ChatScreen() {
             onSend={onSend}
             placeholder={t("type_message")}
             sending={sending}
+            keyboardVisible={keyboardVisible}
           />
         </KeyboardStickyView>
       </KeyboardAvoidingView>
@@ -219,7 +245,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
   flex: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.white },
-  list: { flex: 1, backgroundColor: colors.lavender50 },
+  wallpaper: { flex: 1, backgroundColor: colors.lavender50 },
+  wallpaperImage: { opacity: 0.72 },
+  list: { flex: 1, backgroundColor: "transparent" },
   typing: {
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xs,

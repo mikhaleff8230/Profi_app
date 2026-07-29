@@ -12,6 +12,7 @@ type RussiaCity = {
 type RussiaCityInputProps = {
   value: string;
   onChange: (value: string) => void;
+  onSelect?: (city: RussiaCity) => void;
   placeholder?: string;
   required?: boolean;
   className?: string;
@@ -33,6 +34,7 @@ const POPULAR_RUSSIA_CITIES = [
 export default function RussiaCityInput({
   value,
   onChange,
+  onSelect,
   placeholder = 'Город',
   required,
   className = 'rounded border border-border-200 px-3 py-2',
@@ -93,6 +95,7 @@ export default function RussiaCityInput({
                   onMouseDown={(event) => {
                     event.preventDefault();
                     onChange(cityName);
+                    onSelect?.(city);
                     setOpen(false);
                   }}
                 >

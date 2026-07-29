@@ -54,7 +54,6 @@ export type ProffiStats = {
   chats: number;
   messages: number;
   categories: number;
-  filters: number;
 };
 
 export type ProffiUser = {
@@ -63,6 +62,7 @@ export type ProffiUser = {
   name: string;
   role: string;
   city?: string | null;
+  location_id?: number | null;
   email?: string | null;
   services?: string[];
   avatar?: string | null;
@@ -159,6 +159,7 @@ export type ProffiTask = {
   customer_phone?: string | null;
   accepted_specialist_name?: string | null;
   city?: string | null;
+  location_id?: number | null;
   address?: string | null;
   lat?: number | null;
   lng?: number | null;

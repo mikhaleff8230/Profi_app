@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Linking, Platform } from "react-native";
 import { apiFetch, getToken, setToken } from "../api";
 import { resetEcho } from "../services/realtime";
+import { registerPushNotifications, subscribeToNotificationLinks, unregisterPushNotifications } from "../services/pushNotifications";
 
 export type UserRole = "customer" | "specialist";
 
@@ -133,6 +134,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [consumeOAuthUrl]);
 
+  useEffect(() => {
+    if (!user || user.role !== "specialist") return undefined;
+    void registerPushNotifications();
+    const subscription = subscribeToNotificationLinks();
+    return () => subscription.remove();
+  }, [user]);
+
   const signIn = useCallback(async (token: string, u: User) => {
     if (!isAllowedAppUser(u)) {
       await setToken(null);
@@ -146,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     resetEcho();
+    await unregisterPushNotifications();
     await setToken(null);
     setUser(null);
   }, []);

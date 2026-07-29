@@ -21,7 +21,7 @@ export default function WelcomeAuthScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <TreaboLogo />
         <Text style={styles.title}>Даем заработать каждому мастеру.</Text>
-        <Text style={styles.note}>Treabo Proffi — приложение только для мастеров. Заказы, карта, чат и анкета специалиста в одном месте.</Text>
+        <Text style={styles.note}>Приложение для мастеров. Заказы, карта, чаты в одном месте.</Text>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
         <PrimaryButton title="Стать мастером" onPress={() => navigation.navigate("PhoneEntry", { role: "specialist" })} />

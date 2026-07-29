@@ -80,7 +80,7 @@ export default function TreaboCategories() {
     const payload = {
       ...form,
       parent_id: form.parent_id || null,
-      slug: form.slug || form.id,
+      slug: form.slug || null,
       name_ro: form.name_ru,
       sort_order: Number(form.sort_order || 0),
     };
@@ -133,10 +133,9 @@ export default function TreaboCategories() {
       <form onSubmit={submit} className="mb-6 grid gap-3 rounded border border-border-200 bg-light p-5 md:grid-cols-6">
         <input
           className="rounded border border-border-200 px-3 py-2"
-          placeholder="id"
+          placeholder="ID — создастся автоматически"
           value={form.id}
           onChange={(e) => setForm({ ...form, id: e.target.value, slug: form.slug || e.target.value })}
-          required
           disabled={!!editingId}
         />
         <select
@@ -174,7 +173,7 @@ export default function TreaboCategories() {
         />
         <input
           className="rounded border border-border-200 px-3 py-2 md:col-span-2"
-          placeholder="SEO/AI slug"
+          placeholder="ЧПУ/slug — создастся из названия"
           value={form.slug}
           onChange={(e) => setForm({ ...form, slug: e.target.value })}
         />

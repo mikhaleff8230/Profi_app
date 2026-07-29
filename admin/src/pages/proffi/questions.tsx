@@ -276,12 +276,12 @@ export default function TreaboQuestions() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
-              <span>field_key</span>
+              <span>ID поля (field_key)</span>
               <input
                 className={fieldClass()}
                 value={form.field_key}
                 onChange={(e) => setForm({ ...form, field_key: e.target.value })}
-                placeholder="area"
+                placeholder="Создастся автоматически из вопроса"
               />
             </label>
             <label className="grid gap-1 text-sm">
