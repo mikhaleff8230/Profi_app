@@ -275,6 +275,135 @@ export type AiChatKnowledgeInput = {
   is_active?: boolean;
 };
 
+export type AiKnowledgeImportStatus =
+  | 'uploaded'
+  | 'parsing'
+  | 'normalizing'
+  | 'queued'
+  | 'analyzing'
+  | 'review'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type AiKnowledgeSource = {
+  id: number;
+  name: string;
+  type: string;
+  default_region?: string | null;
+};
+
+export type AiKnowledgeImport = {
+  id: number;
+  source_id: number;
+  knowledge_version_id?: number | null;
+  status: AiKnowledgeImportStatus;
+  mode: 'terms' | 'catalog' | 'questions' | 'full_analysis';
+  category_hint?: string | null;
+  region?: string | null;
+  rows_total: number;
+  rows_unique: number;
+  clusters_total: number;
+  proposals_total: number;
+  proposals_count?: number;
+  cost_limit_usd: number;
+  actual_cost_usd: number;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  progress: number;
+  error?: { message?: string } | null;
+  source?: AiKnowledgeSource;
+  rows_preview?: Array<{
+    id: number;
+    raw_text: string;
+    frequency?: number | null;
+    status: string;
+  }>;
+  created_at?: string | null;
+};
+
+export type AiKnowledgeProposal = {
+  id: number;
+  import_id: number;
+  proposal_type: string;
+  status: 'generated' | 'needs_clarification' | 'in_review' | 'accepted' | 'rejected' | 'superseded' | 'published';
+  target_type?: string | null;
+  target_id?: string | null;
+  title: string;
+  payload: Record<string, any>;
+  evidence: Array<{ row_id?: number; text?: string }>;
+  confidence: number;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  review_note?: string | null;
+  import?: AiKnowledgeImport;
+  created_at?: string | null;
+};
+
+export type AiKnowledgeTerm = {
+  id: number;
+  knowledge_version_id: number;
+  stable_key: string;
+  display_text: string;
+  normalized_text: string;
+  term_type: string;
+  status: 'draft' | 'published' | 'archived';
+  frequency: number;
+  use_count: number;
+  variants?: Array<{
+    id: number;
+    variant_text: string;
+    variant_type: string;
+    frequency: number;
+    confidence: number;
+  }>;
+  links?: Array<{
+    id: number;
+    target_type: string;
+    target_id: string;
+    relation: string;
+    weight: number;
+    status: string;
+  }>;
+};
+
+export type AiKnowledgeVersion = {
+  id: number;
+  version: string;
+  based_on_version_id?: number | null;
+  rollback_of_version_id?: number | null;
+  status: 'draft' | 'testing' | 'published' | 'archived';
+  terms_count?: number;
+  documents_count?: number;
+  proposals_count?: number;
+  metrics?: Record<string, number> | null;
+  publication_report?: Record<string, any> | null;
+  published_at?: string | null;
+};
+
+export type AiKnowledgeRetrieval = {
+  knowledge_version_id?: number | null;
+  knowledge_version?: string | null;
+  query_normalized: string;
+  categories: Array<{ id: string; name_ru: string }>;
+  works: Array<{
+    work_id: number;
+    category_id: string;
+    title: string;
+    score: number;
+    evidence: Array<{ source: string; text: string; relation?: string; score: number }>;
+  }>;
+  questions: Array<{ id: number; work_id: number; question: string; type: string }>;
+};
+
+export type LaravelPaginator<T> = {
+  data: T[];
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+};
+
 export type ProffiWork = {
   id: number;
   category_id?: string | null;
@@ -317,7 +446,11 @@ export type ProffiWorkQuestion = {
   options?: string[] | null;
   placeholder?: string | null;
   help_text?: string | null;
+  ai_instruction?: string | null;
+  group_id?: number | null;
   is_required?: boolean;
+  default_visibility?: 'always' | 'conditional';
+  is_safety_critical?: boolean;
   sort_order?: number;
   is_active?: boolean;
   created_at?: string | null;
@@ -334,9 +467,46 @@ export type ProffiWorkQuestionInput = {
   options?: string[] | null;
   placeholder?: string | null;
   help_text?: string | null;
+  ai_instruction?: string | null;
+  group_id?: number | null;
   is_required?: boolean;
+  default_visibility?: 'always' | 'conditional';
+  is_safety_critical?: boolean;
   sort_order?: number;
   is_active?: boolean;
+};
+
+export type ProffiQuestionGroup = {
+  id: number;
+  work_id: number;
+  title: string;
+  description?: string | null;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type ProffiQuestionRule = {
+  id: number;
+  work_id: number;
+  name: string;
+  match_type: 'all' | 'any';
+  conditions: Array<{
+    question_id: number;
+    operator: string;
+    value: unknown;
+  }>;
+  actions: Array<{
+    question_id: number;
+    effect: 'show' | 'hide' | 'require' | 'optional';
+  }>;
+  priority: number;
+  is_active: boolean;
+};
+
+export type ProffiQuestionFlow = {
+  groups: ProffiQuestionGroup[];
+  rules: ProffiQuestionRule[];
+  questions: ProffiWorkQuestion[];
 };
 
 export async function getProffiAdmin<T>(path: string): Promise<T> {

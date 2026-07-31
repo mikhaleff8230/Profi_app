@@ -33,7 +33,10 @@ const emptyForm = {
   options: '',
   placeholder: '',
   help_text: '',
+  ai_instruction: '',
   is_required: false,
+  default_visibility: 'always' as 'always' | 'conditional',
+  is_safety_critical: false,
   sort_order: '0',
   is_active: true,
 };
@@ -132,7 +135,10 @@ export default function TreaboQuestions() {
       options: optionsToText(row.options),
       placeholder: row.placeholder || '',
       help_text: row.help_text || '',
+      ai_instruction: row.ai_instruction || '',
       is_required: row.is_required ?? false,
+      default_visibility: row.default_visibility || 'always',
+      is_safety_critical: row.is_safety_critical ?? false,
       sort_order: String(row.sort_order ?? 0),
       is_active: row.is_active ?? true,
     });
@@ -154,7 +160,10 @@ export default function TreaboQuestions() {
       options: parseOptions(form.options, form.type),
       placeholder: form.placeholder.trim() || null,
       help_text: form.help_text.trim() || null,
+      ai_instruction: form.ai_instruction.trim() || null,
       is_required: form.is_required,
+      default_visibility: form.default_visibility,
+      is_safety_critical: form.is_safety_critical,
       sort_order: Number(form.sort_order || 0),
       is_active: form.is_active,
     };
@@ -333,6 +342,17 @@ export default function TreaboQuestions() {
             />
           </label>
 
+          <label className="grid gap-1 text-sm">
+            <span>Инструкция для AI</span>
+            <textarea
+              className={fieldClass()}
+              rows={2}
+              value={form.ai_instruction}
+              onChange={(e) => setForm({ ...form, ai_instruction: e.target.value })}
+              placeholder="Как естественно сформулировать вопрос и что считать достаточным ответом"
+            />
+          </label>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
               <span>Сортировка</span>
@@ -343,6 +363,20 @@ export default function TreaboQuestions() {
               />
             </label>
             <div className="flex flex-col gap-2">
+              <label className="grid gap-1 text-sm">
+                <span>Показывать</span>
+                <select
+                  className={fieldClass()}
+                  value={form.default_visibility}
+                  onChange={(e) => setForm({
+                    ...form,
+                    default_visibility: e.target.value as 'always' | 'conditional',
+                  })}
+                >
+                  <option value="always">Всегда</option>
+                  <option value="conditional">Только по правилу</option>
+                </select>
+              </label>
               <label className="flex items-center gap-2 rounded border border-border-200 px-3 py-2 text-sm">
                 <input
                   type="checkbox"
@@ -350,6 +384,14 @@ export default function TreaboQuestions() {
                   onChange={(e) => setForm({ ...form, is_required: e.target.checked })}
                 />
                 Обязательный
+              </label>
+              <label className="flex items-center gap-2 rounded border border-border-200 px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.is_safety_critical}
+                  onChange={(e) => setForm({ ...form, is_safety_critical: e.target.checked })}
+                />
+                Критичный для безопасности
               </label>
               <label className="flex items-center gap-2 rounded border border-border-200 px-3 py-2 text-sm">
                 <input

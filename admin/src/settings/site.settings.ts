@@ -104,6 +104,18 @@ export const siteSettings = {
         permissions: adminOnly,
       },
       {
+        href: Routes.proffi.aiOperations,
+        label: 'AI качество и обучение',
+        icon: 'SettingsIcon',
+        permissions: adminOnly,
+      },
+      {
+        href: Routes.proffi.questionFlow,
+        label: 'Логика вопросов',
+        icon: 'QuestionIcon',
+        permissions: adminOnly,
+      },
+      {
         href: Routes.proffi.responseSettings,
         label: 'Treabo настройки откликов',
         icon: 'DiaryIcon',
@@ -128,8 +140,14 @@ export const siteSettings = {
         permissions: adminOnly,
       },
       {
+        href: Routes.proffi.aiLab,
+        label: 'AI Лаборатория',
+        icon: 'ImportIcon',
+        permissions: adminOnly,
+      },
+      {
         href: Routes.proffi.aiChat,
-        label: 'AI инструкции',
+        label: 'AI системные инструкции',
         icon: 'QuestionIcon',
         permissions: adminOnly,
       },
