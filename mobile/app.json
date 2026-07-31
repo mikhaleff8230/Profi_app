@@ -2,7 +2,7 @@
   "expo": {
     "name": "Treabo",
     "slug": "treabo",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "scheme": "treabo",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
     "android": {
       "package": "ru.sancan.proffi",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 9,
+      "versionCode": 10,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
