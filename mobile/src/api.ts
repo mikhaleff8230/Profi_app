@@ -87,6 +87,7 @@ export async function apiFetch(
 ): Promise<any> {
   const { auth = true, namespace = "proffi", ...fetchOpts } = options;
   const headers = new Headers(fetchOpts.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (fetchOpts.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -100,7 +101,7 @@ export async function apiFetch(
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
-    throw new Error(htmlErrorMessage(text, res.status));
+    throw new Error(htmlErrorMessage(text, res.status, resolveApiUrl(path, namespace)));
   }
   if (!res.ok) {
     throw new Error(errorMessage(data, res.status));
@@ -108,17 +109,18 @@ export async function apiFetch(
   return data;
 }
 
-function htmlErrorMessage(text: string, status: number): string {
+function htmlErrorMessage(text: string, status: number, url?: string): string {
   if (/<html[\s>]/i.test(text) || /<!doctype html/i.test(text)) {
     return status >= 500
       ? "Сервер вернул ошибку. Проверьте API/миграции и повторите."
-      : `Ошибка API HTTP ${status}`;
+      : `Сервер API вернул страницу вместо данных (HTTP ${status})${url ? `: ${url}` : ""}`;
   }
   const clean = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   return clean || `HTTP ${status}`;
 }
 
 function errorMessage(data: any, status: number): string {
+  if (typeof data?.error?.message === "string") return data.error.message;
   const d = data?.detail;
   if (typeof d === "string") return d;
   if (Array.isArray(d)) return d.map((x: any) => x?.msg || JSON.stringify(x)).join(", ");

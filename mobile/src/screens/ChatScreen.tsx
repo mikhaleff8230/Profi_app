@@ -97,25 +97,27 @@ export default function ChatScreen() {
       const echo = await getEcho();
       if (!alive || !echo) return;
 
-      channel = echo.private(`proffi.chat.${chatId}`)
-        .listen(".message.sent", (event: any) => {
+      const privateChannel = typeof echo.private === "function" ? echo.private(`proffi.chat.${chatId}`) : null;
+      if (!privateChannel || typeof privateChannel.listen !== "function") return;
+      channel = privateChannel;
+      channel.listen(".message.sent", (event: any) => {
           if (!event?.message) return;
           receiveRealtimeMessage(event.message);
           if (String(event.message.sender_id) !== String(user?.id)) {
             markAsRead(chatId).catch(() => undefined);
           }
-        })
-        .listen(".messages.read", (event: any) => {
+        });
+      channel.listen(".messages.read", (event: any) => {
           if (!event?.read_at) return;
           markRealtimeRead(chatId, event.reader_id, event.read_at, user?.id);
-        })
-        .listen(".user.typing", (event: any) => {
+        });
+      channel.listen(".user.typing", (event: any) => {
           if (String(event?.user_id) === String(user?.id)) return;
           updateChatRealtime(chatId, { is_typing: Boolean(event?.is_typing) });
           if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
           typingTimerRef.current = setTimeout(() => updateChatRealtime(chatId, { is_typing: false }), 5500);
-        })
-        .listen(".presence.updated", (event: any) => {
+        });
+      channel.listen(".presence.updated", (event: any) => {
           if (String(event?.user_id) === String(user?.id)) return;
           updateChatRealtime(chatId, {
             other_is_online: Boolean(event?.is_online),
@@ -129,7 +131,7 @@ export default function ChatScreen() {
     return () => {
       alive = false;
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-      if (channel) {
+      if (channel && typeof channel.stopListening === "function") {
         channel.stopListening(".message.sent");
         channel.stopListening(".messages.read");
         channel.stopListening(".user.typing");
@@ -151,7 +153,7 @@ export default function ChatScreen() {
     const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
     const hideSubscription = Keyboard.addListener(hideEvent, () => {
       setKeyboardVisible(false);
-      requestAnimationFrame(() => scrollToEnd(false));
+      setTimeout(() => scrollToEnd(false), 0);
     });
     return () => {
       showSubscription.remove();
@@ -170,7 +172,7 @@ export default function ChatScreen() {
     setSending(true);
     try {
       await sendMessage(chatId, v);
-      requestAnimationFrame(() => scrollToEnd(true));
+      setTimeout(() => scrollToEnd(true), 0);
     } catch (e) {
       setText(v);
       Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));

@@ -42,12 +42,17 @@ export type DraftResponse = {
 const CLIENT_DRAFT_KEY = "treabo_customer_draft_id";
 
 function uuid(): string {
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+  const bytes = new Uint8Array(16);
+  for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
 }
 
 export async function clientDraftId(): Promise<string> {
   const current = await AsyncStorage.getItem(CLIENT_DRAFT_KEY);
-  if (current) return current;
+  if (current && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(current)) return current;
   const next = uuid();
   await AsyncStorage.setItem(CLIENT_DRAFT_KEY, next);
   return next;

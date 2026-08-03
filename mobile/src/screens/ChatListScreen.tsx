@@ -44,18 +44,19 @@ function ChatRow({
   lang: Lang;
   onPress: () => void;
 }) {
-  const letter = chat.title.charAt(0).toUpperCase();
+  const safeTitle = typeof chat.title === "string" && chat.title.trim() ? chat.title : "Чат";
+  const letter = safeTitle.charAt(0).toUpperCase();
   const unread = Number(chat.unread_count || 0);
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.85}>
-      <View style={[styles.avatar, { backgroundColor: avatarColor(chat.title) }]}>
+      <View style={[styles.avatar, { backgroundColor: avatarColor(safeTitle) }]}>
         <Text style={styles.avatarLetter}>{letter}</Text>
         {chat.other_is_online ? <View style={styles.onlineDot} /> : null}
       </View>
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
           <Text style={styles.name} numberOfLines={1}>
-            {chat.title}
+            {safeTitle}
           </Text>
           <Text style={styles.time}>{timeAgo(chat.updated_at, lang)}</Text>
         </View>

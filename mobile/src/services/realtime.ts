@@ -41,7 +41,7 @@ export async function getEcho(): Promise<Echo<any> | null> {
 
 export async function leaveProffiChat(chatId: string | number): Promise<void> {
   const instance = await getEcho();
-  instance?.leave(`proffi.chat.${chatId}`);
+  if (instance && typeof instance.leave === "function") instance.leave(`proffi.chat.${chatId}`);
 }
 
 export function resetEcho(): void {

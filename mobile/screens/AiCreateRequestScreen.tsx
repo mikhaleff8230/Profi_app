@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -122,7 +122,7 @@ export default function AiCreateRequestScreen() {
     try {
       addTurn(userText, await operation());
       setText("");
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 0);
     } catch (error) {
       Alert.alert("Не удалось продолжить", error instanceof Error ? error.message : String(error));
     } finally {
@@ -133,7 +133,7 @@ export default function AiCreateRequestScreen() {
   const submitText = () => {
     const value = text.trim();
     if (!value) return;
-    if (!draft) void run(() => createDraft(value, city), value);
+    if (!draft) void run(() => createDraft(value), value);
     else if (action?.type === "ask_question" && action.question.id != null) {
       void run(() => answerQuestion(draft, action.question.id!, action.question.field_type === "number" ? Number(value) : value), value);
     } else void run(() => answerDraft(draft, { message: value }), value);
@@ -211,10 +211,10 @@ export default function AiCreateRequestScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.roundButton} onPress={() => navigation.goBack()}><Ionicons name="close" size={23} color={colors.black} /></TouchableOpacity>
-          <View style={styles.headerTitle}><Text style={styles.eyebrow}>AI‑ПОМОЩНИК</Text><Text style={styles.title}>{draft?.title || "Новая заявка"}</Text></View>
+          <View style={styles.headerTitle}><Text style={styles.eyebrow}>ЗАЯВКА С AI</Text><Text style={styles.title}>{draft?.title || "Опишите задачу"}</Text><Text style={styles.stepLabel}>{draft ? `Готово на ${progress}%` : "Шаг 1 · Описание"}</Text></View>
           <TouchableOpacity style={styles.roundButton} onPress={reset}><Ionicons name="refresh" size={20} color={colors.black} /></TouchableOpacity>
         </View>
         <View style={styles.progressTrack}><View style={[styles.progress, { width: `${Math.max(4, progress)}%` }]} /></View>
@@ -223,11 +223,10 @@ export default function AiCreateRequestScreen() {
           <View style={styles.welcome}>
             <View style={styles.spark}><Ionicons name="sparkles" size={30} color={colors.black} /></View>
             <Text style={styles.welcomeTitle}>Что нужно сделать?</Text>
-            <Text style={styles.welcomeText}>Расскажите своими словами. Можно коротко и без специальных терминов.</Text>
-            <TextInput style={styles.cityInput} value={city} onChangeText={setCity} placeholder="Город (можно позже)" placeholderTextColor={colors.neutral400} />
+            <Text style={styles.welcomeText}>Опишите задачу своими словами. AI уточнит детали, а адрес вы укажете перед публикацией.</Text>
           </View>
         ) : (
-          <FlatList ref={listRef} data={messages} keyExtractor={(item) => item.id} contentContainerStyle={styles.chat} renderItem={({ item }) => (
+          <FlatList ref={listRef} data={messages} keyExtractor={(item) => item.id} contentContainerStyle={styles.chat} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" renderItem={({ item }) => (
             <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}><Text style={item.role === "user" ? styles.userText : styles.assistantText}>{item.text}</Text></View>
           )} />
         )}
@@ -242,7 +241,7 @@ export default function AiCreateRequestScreen() {
             </View>
           ) : action?.type === "review" ? (
             <View style={styles.review}>
-              <TextInput style={styles.reviewInput} value={city} onChangeText={setCity} placeholder="Город *" />
+              <Text style={styles.reviewTitle}>Где выполнить работу?</Text>
               <TextInput style={styles.reviewInput} value={address} onChangeText={(value) => { setAddress(value); setLocation(null); }} placeholder="Начните вводить адрес *" />
               {addressSuggestions.length > 0 && <View style={styles.suggestions}>{addressSuggestions.map((item, index) => { const label = item.full_address || item.address || ""; return <TouchableOpacity key={`${label}-${index}`} style={styles.suggestion} onPress={() => { setAddress(label); setCity(item.city || city); setLocation(item); setAddressSuggestions([]); }}><Ionicons name="location-outline" size={18} color={colors.neutral500} /><Text style={styles.suggestionText}>{label}</Text></TouchableOpacity>; })}</View>}
               {location && <Text style={styles.confirmed}>✓ Адрес подтверждён</Text>}
@@ -252,7 +251,7 @@ export default function AiCreateRequestScreen() {
               <TouchableOpacity style={styles.publish} onPress={publish} disabled={busy}><Text style={styles.publishText}>Опубликовать заявку</Text><Ionicons name="arrow-forward" size={20} color={colors.black} /></TouchableOpacity>
             </View>
           ) : choices.length === 0 && quickOptions.length === 0 ? (
-            <View><View style={styles.composer}><TextInput style={styles.input} value={text} onChangeText={setText} placeholder={draft ? "Ваш ответ" : "Например: нужно собрать шкаф"} placeholderTextColor={colors.neutral400} multiline /><TouchableOpacity style={[styles.send, !text.trim() && styles.sendDisabled]} disabled={!text.trim() || busy} onPress={submitText}>{busy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={22} color={colors.white} />}</TouchableOpacity></View>{draft && action?.type === "ask_question" && !action.question.required && action.question.id != null && <TouchableOpacity style={styles.skipInline} onPress={() => void run(() => skipQuestion(draft, action.question.id!), "Пропустить")}><Text style={styles.skipText}>Пропустить вопрос</Text></TouchableOpacity>}</View>
+            <View><View style={styles.composer}><TextInput style={styles.input} value={text} onChangeText={setText} onFocus={() => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 120)} placeholder={draft ? "Ваш ответ" : "Например: нужно собрать шкаф"} placeholderTextColor={colors.neutral400} multiline maxLength={4000} /><TouchableOpacity style={[styles.send, !text.trim() && styles.sendDisabled]} disabled={!text.trim() || busy} onPress={() => { Keyboard.dismiss(); submitText(); }}>{busy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={22} color={colors.white} />}</TouchableOpacity></View>{draft && action?.type === "ask_question" && !action.question.required && action.question.id != null && <TouchableOpacity style={styles.skipInline} onPress={() => void run(() => skipQuestion(draft, action.question.id!), "Пропустить")}><Text style={styles.skipText}>Пропустить вопрос</Text></TouchableOpacity>}</View>
           ) : null}
         </View>
       </KeyboardAvoidingView>
@@ -264,18 +263,17 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F6F7FB" }, loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
   roundButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.white, alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1 }, eyebrow: { fontSize: 10, fontWeight: "900", color: "#7C862F", letterSpacing: 1 }, title: { fontSize: 18, fontWeight: "900", color: colors.black, marginTop: 2 },
+  headerTitle: { flex: 1 }, eyebrow: { fontSize: 10, fontWeight: "900", color: "#7C862F", letterSpacing: 1 }, title: { fontSize: 18, fontWeight: "900", color: colors.black, marginTop: 2 }, stepLabel: { marginTop: 2, fontSize: 11, color: colors.neutral500 },
   progressTrack: { height: 3, backgroundColor: "#E8EBF1" }, progress: { height: 3, backgroundColor: "#C8DF55" },
   welcome: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 30 }, spark: { width: 64, height: 64, borderRadius: 22, backgroundColor: "#D9F36B", alignItems: "center", justifyContent: "center" },
   welcomeTitle: { fontSize: 30, fontWeight: "900", color: colors.black, marginTop: 20 }, welcomeText: { fontSize: 15, lineHeight: 22, color: colors.neutral500, textAlign: "center", marginTop: 10 },
-  cityInput: { width: "100%", marginTop: 22, borderRadius: 16, backgroundColor: colors.white, paddingHorizontal: 16, minHeight: 52, fontSize: 16 },
   chat: { padding: 16, gap: 10, flexGrow: 1, justifyContent: "flex-end" }, bubble: { maxWidth: "86%", borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12 }, userBubble: { alignSelf: "flex-end", backgroundColor: "#24262D", borderBottomRightRadius: 6 }, assistantBubble: { alignSelf: "flex-start", backgroundColor: colors.white, borderBottomLeftRadius: 6 },
   userText: { color: colors.white, fontSize: 15, lineHeight: 21 }, assistantText: { color: "#30323A", fontSize: 15, lineHeight: 21 },
   composerArea: { backgroundColor: colors.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 14, gap: 10 }, composer: { flexDirection: "row", alignItems: "flex-end", gap: 10 }, input: { flex: 1, maxHeight: 110, minHeight: 52, borderRadius: 18, backgroundColor: "#F1F3F7", paddingHorizontal: 16, paddingVertical: 14, fontSize: 16 }, send: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#24262D", alignItems: "center", justifyContent: "center" }, sendDisabled: { opacity: 0.35 },
   chips: { gap: 8, paddingVertical: 2 }, chip: { borderRadius: 18, backgroundColor: "#F1F7D9", paddingHorizontal: 16, paddingVertical: 12 }, chipText: { fontSize: 14, fontWeight: "700", color: "#30323A" },
   optionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, option: { minWidth: "47%", flexGrow: 1, borderWidth: 1, borderColor: "#E0E4EC", borderRadius: 16, padding: 14 }, optionText: { fontSize: 15, fontWeight: "700", textAlign: "center" },
   optionSelected: { backgroundColor: "#F1F7D9", borderColor: "#B4CA42" }, multiConfirm: { width: "100%", minHeight: 48, borderRadius: 16, backgroundColor: "#24262D", alignItems: "center", justifyContent: "center" },
-  review: { gap: 9 }, reviewInput: { minHeight: 50, borderRadius: 15, backgroundColor: "#F1F3F7", paddingHorizontal: 15, fontSize: 15 }, publish: { minHeight: 54, borderRadius: 18, backgroundColor: "#D9F36B", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 }, publishText: { fontSize: 16, fontWeight: "900", color: colors.black },
+  review: { gap: 9 }, reviewTitle: { fontSize: 16, fontWeight: "900", color: colors.black, paddingHorizontal: 2 }, reviewInput: { minHeight: 50, borderRadius: 15, backgroundColor: "#F1F3F7", paddingHorizontal: 15, fontSize: 15 }, publish: { minHeight: 54, borderRadius: 18, backgroundColor: "#D9F36B", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 }, publishText: { fontSize: 16, fontWeight: "900", color: colors.black },
   photoButton: { minHeight: 50, flex: 1, borderRadius: 16, backgroundColor: "#24262D", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   photoButtonText: { color: colors.white, fontSize: 15, fontWeight: "800" }, skipButton: { minHeight: 50, justifyContent: "center", paddingHorizontal: 18 }, skipInline: { alignSelf: "center", padding: 10 }, skipText: { color: colors.neutral500, fontSize: 14, fontWeight: "700" },
   suggestions: { borderWidth: 1, borderColor: "#E0E4EC", borderRadius: 15, overflow: "hidden" }, suggestion: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E0E4EC" }, suggestionText: { flex: 1, fontSize: 13, color: "#30323A" }, confirmed: { color: "#64751F", fontSize: 13, fontWeight: "800" },
