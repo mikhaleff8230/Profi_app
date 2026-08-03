@@ -15,10 +15,10 @@ function messageAttachmentUrl(message: Message): string | null {
 }
 
 export function MessageBubble({ message, isMine }: Props) {
-  const time = new Date(message.created_at).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const parsedDate = new Date(message.created_at || Date.now());
+  const time = Number.isNaN(parsedDate.getTime())
+    ? ""
+    : `${String(parsedDate.getHours()).padStart(2, "0")}:${String(parsedDate.getMinutes()).padStart(2, "0")}`;
   const attachmentUrl = messageAttachmentUrl(message);
   const isImage = message.type === "image" || Boolean(attachmentUrl && /\.(jpe?g|png|gif|webp)(\?|$)/i.test(attachmentUrl));
   const body = message.type === "file" ? message.metadata?.name || message.text || "Файл" : message.text;

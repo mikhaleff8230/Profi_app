@@ -26,6 +26,7 @@ type Option = { id: string | number; name: string };
 
 function actionMessage(response: DraftResponse): string {
   const action = response.data.ui_action;
+  if (!action) return "Продолжим";
   if (action.type === "ask_question") return action.question.text;
   return "message" in action ? action.message || "Продолжим" : "Продолжим";
 }
@@ -40,6 +41,8 @@ export default function AiCreateRequestScreen() {
   const [address, setAddress] = useState("");
   const [location, setLocation] = useState<GeoAddressResult | null>(null);
   const [addressSuggestions, setAddressSuggestions] = useState<GeoAddressResult[]>([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressError, setAddressError] = useState("");
   const [budget, setBudget] = useState("");
   const [budgetType, setBudgetType] = useState<"negotiable" | "fixed" | "range">("negotiable");
   const [budgetMin, setBudgetMin] = useState("");
@@ -51,7 +54,7 @@ export default function AiCreateRequestScreen() {
 
   const draft = response?.data.draft;
   const action = response?.data.ui_action;
-  const progress = response?.data.progress.percent || 0;
+  const progress = response?.data.progress?.percent || 0;
 
   useEffect(() => {
     restoreDraft().then((saved) => {
@@ -98,13 +101,26 @@ export default function AiCreateRequestScreen() {
   }, [draft?.id]);
 
   useEffect(() => {
-    if (action?.type !== "review" || address.trim().length < 3 || location?.full_address === address) {
+    if (action?.type !== "review" || address.trim().length < 2 || location?.full_address === address) {
       setAddressSuggestions([]);
+      setAddressLoading(false);
+      setAddressError("");
       return;
     }
     const timer = setTimeout(() => {
-      suggestAddresses(address, { city, count: 5 }).then(setAddressSuggestions).catch(() => setAddressSuggestions([]));
-    }, 350);
+      setAddressLoading(true);
+      setAddressError("");
+      suggestAddresses(address, { count: 8 })
+        .then((items) => {
+          setAddressSuggestions(items);
+          if (!items.length) setAddressError("Адрес не найден. Добавьте город, улицу и номер дома.");
+        })
+        .catch(() => {
+          setAddressSuggestions([]);
+          setAddressError("Не удалось загрузить адреса. Проверьте интернет и повторите.");
+        })
+        .finally(() => setAddressLoading(false));
+    }, 300);
     return () => clearTimeout(timer);
   }, [action?.type, address, city, location?.full_address]);
 
@@ -154,8 +170,7 @@ export default function AiCreateRequestScreen() {
   ]);
 
   const publish = async () => {
-    if (!draft || !city.trim()) { Alert.alert("Укажите город"); return; }
-    if (!location?.lat || !location?.lng) { Alert.alert("Подтвердите адрес", "Выберите точный адрес из подсказок."); return; }
+    if (!draft || !city.trim() || !location?.lat || !location?.lng) { Alert.alert("Выберите адрес", "Начните вводить город, улицу и дом, затем выберите точный адрес из списка."); return; }
     if (budgetType === "fixed" && (!budget || Number(budget) <= 0)) { Alert.alert("Укажите бюджет"); return; }
     if (budgetType === "range" && (!budgetMin || !budgetMax || Number(budgetMin) > Number(budgetMax))) { Alert.alert("Проверьте диапазон бюджета"); return; }
     setBusy(true);
@@ -171,12 +186,13 @@ export default function AiCreateRequestScreen() {
         { op: "replace", path: "/budget/min", value: budgetType === "range" && budgetMin ? Number(budgetMin) : null },
         { op: "replace", path: "/budget/max", value: budgetType === "range" && budgetMax ? Number(budgetMax) : null },
       ]);
-      const published = await publishDraft(updated.data.draft);
+      await publishDraft(updated.data.draft);
       await clearClientDraft();
       Alert.alert("Заявка опубликована", "Мастера смогут откликнуться на неё.", [
         { text: "Готово", onPress: () => navigation.navigate("MainTabs") },
       ]);
-      setResponse(published);
+      setResponse(null);
+      setMessages([]);
     } catch (error) {
       Alert.alert("Заявка не опубликована", error instanceof Error ? error.message : String(error));
     } finally { setBusy(false); }
@@ -242,8 +258,13 @@ export default function AiCreateRequestScreen() {
           ) : action?.type === "review" ? (
             <View style={styles.review}>
               <Text style={styles.reviewTitle}>Где выполнить работу?</Text>
-              <TextInput style={styles.reviewInput} value={address} onChangeText={(value) => { setAddress(value); setLocation(null); }} placeholder="Начните вводить адрес *" />
-              {addressSuggestions.length > 0 && <View style={styles.suggestions}>{addressSuggestions.map((item, index) => { const label = item.full_address || item.address || ""; return <TouchableOpacity key={`${label}-${index}`} style={styles.suggestion} onPress={() => { setAddress(label); setCity(item.city || city); setLocation(item); setAddressSuggestions([]); }}><Ionicons name="location-outline" size={18} color={colors.neutral500} /><Text style={styles.suggestionText}>{label}</Text></TouchableOpacity>; })}</View>}
+              <Text style={styles.addressHint}>Введите город, улицу и номер дома</Text>
+              <View style={styles.addressField}>
+                <TextInput style={styles.reviewInput} value={address} onChangeText={(value) => { setAddress(value); setLocation(null); }} placeholder="Например: Москва, Тверская, 10" autoCorrect={false} autoCapitalize="sentences" />
+                {addressLoading && <ActivityIndicator style={styles.addressSpinner} size="small" color={colors.neutral500} />}
+                {addressSuggestions.length > 0 && <View style={styles.suggestions}>{addressSuggestions.map((item, index) => { const label = item.full_address || item.address || ""; return <TouchableOpacity key={`${label}-${index}`} style={styles.suggestion} onPress={() => { setAddress(label); setCity(item.city || ""); setLocation(item); setAddressSuggestions([]); setAddressError(""); Keyboard.dismiss(); }}><Ionicons name="location-outline" size={18} color={colors.neutral500} /><Text style={styles.suggestionText}>{label}</Text></TouchableOpacity>; })}</View>}
+              </View>
+              {!!addressError && !addressLoading && <Text style={styles.addressError}>{addressError}</Text>}
               {location && <Text style={styles.confirmed}>✓ Адрес подтверждён</Text>}
               <View style={styles.budgetTabs}>{([['negotiable', 'Договорной'], ['fixed', 'Точная сумма'], ['range', 'Диапазон']] as const).map(([value, label]) => <TouchableOpacity key={value} style={[styles.budgetTab, budgetType === value && styles.budgetTabActive]} onPress={() => setBudgetType(value)}><Text style={styles.budgetTabText}>{label}</Text></TouchableOpacity>)}</View>
               {budgetType === "fixed" && <TextInput style={styles.reviewInput} value={budget} onChangeText={setBudget} keyboardType="number-pad" placeholder="Сумма, ₽" />}
@@ -273,9 +294,9 @@ const styles = StyleSheet.create({
   chips: { gap: 8, paddingVertical: 2 }, chip: { borderRadius: 18, backgroundColor: "#F1F7D9", paddingHorizontal: 16, paddingVertical: 12 }, chipText: { fontSize: 14, fontWeight: "700", color: "#30323A" },
   optionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, option: { minWidth: "47%", flexGrow: 1, borderWidth: 1, borderColor: "#E0E4EC", borderRadius: 16, padding: 14 }, optionText: { fontSize: 15, fontWeight: "700", textAlign: "center" },
   optionSelected: { backgroundColor: "#F1F7D9", borderColor: "#B4CA42" }, multiConfirm: { width: "100%", minHeight: 48, borderRadius: 16, backgroundColor: "#24262D", alignItems: "center", justifyContent: "center" },
-  review: { gap: 9 }, reviewTitle: { fontSize: 16, fontWeight: "900", color: colors.black, paddingHorizontal: 2 }, reviewInput: { minHeight: 50, borderRadius: 15, backgroundColor: "#F1F3F7", paddingHorizontal: 15, fontSize: 15 }, publish: { minHeight: 54, borderRadius: 18, backgroundColor: "#D9F36B", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 }, publishText: { fontSize: 16, fontWeight: "900", color: colors.black },
+  review: { gap: 9 }, reviewTitle: { fontSize: 16, fontWeight: "900", color: colors.black, paddingHorizontal: 2 }, addressHint: { fontSize: 12, color: colors.neutral500, paddingHorizontal: 2 }, addressField: { position: "relative", zIndex: 20 }, addressSpinner: { position: "absolute", right: 15, top: 15 }, addressError: { fontSize: 12, lineHeight: 17, color: "#B45309", paddingHorizontal: 2 }, reviewInput: { minHeight: 50, borderRadius: 15, backgroundColor: "#F1F3F7", paddingHorizontal: 15, paddingRight: 45, fontSize: 15 }, publish: { minHeight: 54, borderRadius: 18, backgroundColor: "#D9F36B", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 }, publishText: { fontSize: 16, fontWeight: "900", color: colors.black },
   photoButton: { minHeight: 50, flex: 1, borderRadius: 16, backgroundColor: "#24262D", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   photoButtonText: { color: colors.white, fontSize: 15, fontWeight: "800" }, skipButton: { minHeight: 50, justifyContent: "center", paddingHorizontal: 18 }, skipInline: { alignSelf: "center", padding: 10 }, skipText: { color: colors.neutral500, fontSize: 14, fontWeight: "700" },
-  suggestions: { borderWidth: 1, borderColor: "#E0E4EC", borderRadius: 15, overflow: "hidden" }, suggestion: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E0E4EC" }, suggestionText: { flex: 1, fontSize: 13, color: "#30323A" }, confirmed: { color: "#64751F", fontSize: 13, fontWeight: "800" },
+  suggestions: { position: "absolute", left: 0, right: 0, bottom: 56, maxHeight: 250, backgroundColor: colors.white, borderWidth: 1, borderColor: "#D7DBE5", borderRadius: 15, overflow: "hidden", zIndex: 30, elevation: 12, shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } }, suggestion: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E0E4EC" }, suggestionText: { flex: 1, fontSize: 13, lineHeight: 17, color: "#30323A" }, confirmed: { color: "#64751F", fontSize: 13, fontWeight: "800" },
   budgetTabs: { flexDirection: "row", gap: 6 }, budgetTab: { flex: 1, minHeight: 42, borderRadius: 13, backgroundColor: "#F1F3F7", alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }, budgetTabActive: { backgroundColor: "#F1F7D9", borderWidth: 1, borderColor: "#B4CA42" }, budgetTabText: { fontSize: 11, fontWeight: "800", color: "#30323A", textAlign: "center" }, rangeRow: { flexDirection: "row", gap: 8 }, rangeInput: { flex: 1 },
 });

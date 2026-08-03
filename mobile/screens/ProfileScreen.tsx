@@ -73,6 +73,11 @@ export default function ProfileScreen() {
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetOtpId, setResetOtpId] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
     apiFetch("/auth/stats", { method: "GET" })
@@ -155,6 +160,38 @@ export default function ProfileScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const sendPasswordCode = async (channel: "telegram" | "email") => {
+    if (!user?.phone) { Alert.alert("Телефон не указан"); return; }
+    setResetBusy(true);
+    try {
+      const result = await apiFetch("/auth/customer/password/send-code", {
+        method: "POST",
+        auth: false,
+        body: JSON.stringify({ phone: user.phone, channel }),
+      });
+      setResetOtpId(String(result?.otp_id || ""));
+      Alert.alert("Код отправлен", channel === "email" ? `Проверьте ${result?.destination || user.email}` : "Проверьте сообщения в Telegram");
+    } catch (error) {
+      Alert.alert("Не удалось отправить код", error instanceof Error ? error.message : String(error));
+    } finally { setResetBusy(false); }
+  };
+
+  const resetPassword = async () => {
+    if (!user?.phone || !resetOtpId || resetCode.trim().length < 4 || newPassword.length < 6) return;
+    setResetBusy(true);
+    try {
+      await apiFetch("/auth/customer/password/reset", {
+        method: "POST",
+        auth: false,
+        body: JSON.stringify({ phone: user.phone, otp_id: resetOtpId, code: resetCode.trim(), password: newPassword, password_confirmation: newPassword }),
+      });
+      setResetOpen(false); setResetOtpId(""); setResetCode(""); setNewPassword("");
+      Alert.alert("Пароль изменён", "Теперь можно входить с новым паролем.");
+    } catch (error) {
+      Alert.alert("Не удалось изменить пароль", error instanceof Error ? error.message : String(error));
+    } finally { setResetBusy(false); }
   };
 
   const toggleService = (service: string) => {
@@ -274,6 +311,13 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </CardLight>
 
+        {!isSpecialist && (
+          <CardLight style={styles.customerContacts}>
+            <Text style={styles.customerSectionTitle}>Контактные данные</Text>
+            <View style={styles.contactLine}><Ionicons name="mail-outline" size={18} color={colors.neutral500} /><View style={styles.contactText}><Text style={styles.contactLabel}>Электронная почта</Text><Text style={styles.contactValue}>{user.email || "Почта не указана"}</Text></View></View>
+          </CardLight>
+        )}
+
         <View style={styles.avatarRow}>
           <View style={styles.avatarWrap}>
             {avatarUri ? (
@@ -383,14 +427,14 @@ export default function ProfileScreen() {
           </CardLight>
         )}
 
-        <CardLight style={styles.statsCard}>
+        {isSpecialist && <CardLight style={styles.statsCard}>
           <View style={styles.statsRow}>
             <Text style={styles.statsTitle}>{t("my_statistics")}</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.neutral400} />
           </View>
-        </CardLight>
+        </CardLight>}
 
-        {stats && (
+        {isSpecialist && stats && (
           <View style={styles.statsGrid}>
             {stats.role === "specialist" ? (
               <>
@@ -408,8 +452,8 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>{t("about_me")}</Text>
-        {!editingBio ? (
+        {isSpecialist && <Text style={styles.sectionTitle}>{t("about_me")}</Text>}
+        {isSpecialist && (!editingBio ? (
           <View style={styles.bioRow}>
             <Text style={styles.bioText}>{user.bio || t("about_me_placeholder")}</Text>
             <TouchableOpacity style={styles.iconBtn} onPress={() => { setBio(user.bio || ""); setEditingBio(true); }}>
@@ -431,7 +475,7 @@ export default function ProfileScreen() {
               <PrimaryButton title={t("save")} fullWidth={false} style={styles.half} onPress={saveBio} loading={saving} />
             </View>
           </View>
-        )}
+        ))}
 
         {isSpecialist && (
           <View style={styles.services}>
@@ -467,6 +511,15 @@ export default function ProfileScreen() {
               <Text style={styles.bioText}>Выберите услуги, которые вы выполняете</Text>
             )}
           </View>
+        )}
+
+        {!isSpecialist && (
+          <CardLight style={styles.securityCard}>
+            <View style={styles.securityTitle}><Ionicons name="key-outline" size={20} color={colors.black} /><Text style={styles.customerSectionTitle}>Безопасность</Text></View>
+            <Text style={styles.securityHint}>Изменение пароля подтверждается кодом. Номер телефона при этом не меняется.</Text>
+            <TouchableOpacity style={styles.securityButton} onPress={() => { setResetOpen((value) => !value); setResetOtpId(""); setResetCode(""); setNewPassword(""); }}><Text style={styles.securityButtonText}>Сменить или восстановить пароль</Text></TouchableOpacity>
+            {resetOpen && <View style={styles.resetBox}>{!resetOtpId ? <View style={styles.resetActions}><TouchableOpacity disabled={resetBusy} style={styles.resetDark} onPress={() => void sendPasswordCode("telegram")}><Text style={styles.resetDarkText}>Получить код в Telegram</Text></TouchableOpacity>{user.email && !user.email.endsWith("@proffi.local") && <TouchableOpacity disabled={resetBusy} style={styles.resetLime} onPress={() => void sendPasswordCode("email")}><Text style={styles.resetLimeText}>Получить код на email</Text></TouchableOpacity>}</View> : <View style={styles.resetForm}><TextInput style={styles.input} value={resetCode} onChangeText={(value) => setResetCode(value.replace(/\D/g, ""))} keyboardType="number-pad" placeholder="Код подтверждения" /><TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholder="Новый пароль, минимум 6 символов" /><PrimaryButton title="Изменить пароль" onPress={() => void resetPassword()} loading={resetBusy} disabled={resetCode.length < 4 || newPassword.length < 6} /></View>}</View>}
+          </CardLight>
         )}
 
         {isSpecialist && (
@@ -532,6 +585,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   phoneText: { fontSize: 16, fontWeight: "700", color: colors.black, flex: 1 },
+  customerContacts: { marginBottom: spacing.lg }, customerSectionTitle: { fontSize: 18, fontWeight: "900", color: colors.black }, contactLine: { marginTop: 16, minHeight: 58, borderRadius: radii.lg, backgroundColor: colors.lavender50, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16 }, contactText: { flex: 1 }, contactLabel: { fontSize: 11, fontWeight: "700", color: colors.neutral500 }, contactValue: { marginTop: 3, fontSize: 14, fontWeight: "800", color: colors.black },
   linkText: { fontSize: 14, fontWeight: "700", color: colors.black, textDecorationLine: "underline" },
   menuRow: {
     flexDirection: "row",
@@ -631,6 +685,7 @@ const styles = StyleSheet.create({
   addPortfolioBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.lavender50, alignItems: "center", justifyContent: "center" },
   portfolioTrack: { gap: 10 },
   portfolioImage: { width: 104, height: 104, borderRadius: 16, backgroundColor: colors.lavender50 },
+  securityCard: { marginTop: 4, marginBottom: 20 }, securityTitle: { flexDirection: "row", alignItems: "center", gap: 9 }, securityHint: { marginTop: 8, fontSize: 13, lineHeight: 19, fontWeight: "600", color: colors.neutral500 }, securityButton: { alignSelf: "flex-start", marginTop: 14, borderRadius: radii.lg, backgroundColor: colors.lavender50, paddingHorizontal: 16, paddingVertical: 13 }, securityButtonText: { fontSize: 13, fontWeight: "900", color: colors.black }, resetBox: { marginTop: 14, borderWidth: 1, borderColor: colors.neutral100, borderRadius: radii.lg, padding: 12 }, resetActions: { gap: 8 }, resetDark: { minHeight: 48, borderRadius: radii.lg, backgroundColor: colors.black, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }, resetDarkText: { color: colors.white, fontSize: 13, fontWeight: "900" }, resetLime: { minHeight: 48, borderRadius: radii.lg, backgroundColor: "#D9F36B", alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }, resetLimeText: { color: colors.black, fontSize: 13, fontWeight: "900" }, resetForm: { gap: 9 },
   footerMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.neutral100 },
   footerText: { fontSize: 14, color: colors.neutral500 },
 });

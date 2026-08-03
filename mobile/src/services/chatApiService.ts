@@ -36,9 +36,12 @@ type ApiMessage = {
 };
 
 function mapChat(chat: ApiChat): Chat {
+  const taskTitle = typeof chat.task_title === "string" ? chat.task_title : "";
+  const specialistName = typeof chat.specialist_name === "string" ? chat.specialist_name : "";
+  const customerName = typeof chat.customer_name === "string" ? chat.customer_name : "";
   return {
     id: chat.id,
-    title: chat.task_title || chat.specialist_name || chat.customer_name || "Чат",
+    title: taskTitle || specialistName || customerName || "Чат",
     last_message: chat.last_message ?? null,
     updated_at: chat.last_message_at || chat.updated_at || chat.created_at,
     unread_count: Number(chat.unread_count || 0),
@@ -46,11 +49,11 @@ function mapChat(chat: ApiChat): Chat {
     other_is_online: Boolean(chat.other_is_online),
     other_last_seen_at: chat.other_last_seen_at ?? null,
     task_id: chat.task_id,
-    task_title: chat.task_title ?? null,
+    task_title: taskTitle || null,
     customer_id: chat.customer_id,
-    customer_name: chat.customer_name ?? null,
+    customer_name: customerName || null,
     specialist_id: chat.specialist_id,
-    specialist_name: chat.specialist_name ?? null,
+    specialist_name: specialistName || null,
     specialist_avatar: chat.specialist_avatar ?? null,
     specialist_phone_masked: chat.specialist_phone_masked ?? null,
   };
@@ -61,7 +64,7 @@ function mapMessage(message: ApiMessage): Message {
     id: message.id,
     chat_id: message.chat_id,
     user_id: message.sender_id ?? message.user_id ?? 0,
-    text: message.text,
+    text: typeof message.text === "string" ? message.text : "",
     type: message.type === "image" || message.type === "file" || message.type === "pin" ? message.type : "text",
     metadata: message.metadata ?? null,
     created_at: message.created_at,

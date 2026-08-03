@@ -33,8 +33,8 @@ export type DraftAction =
 export type DraftResponse = {
   data: {
     draft: DraftSnapshot;
-    ui_action: DraftAction;
-    progress: { percent: number };
+    ui_action?: DraftAction;
+    progress?: { percent: number };
     task_id?: string;
   };
 };

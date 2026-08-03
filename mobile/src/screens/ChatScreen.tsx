@@ -53,20 +53,18 @@ export default function ChatScreen() {
   const markAsRead = useChatStore((s) => s.markAsRead);
   const sendTyping = useChatStore((s) => s.sendTyping);
   const heartbeat = useChatStore((s) => s.heartbeat);
-  const receiveRealtimeMessage = useChatStore((s) => s.receiveRealtimeMessage);
-  const markRealtimeRead = useChatStore((s) => s.markRealtimeRead);
-  const updateChatRealtime = useChatStore((s) => s.updateChatRealtime);
 
   const chat = chats.find((c) => String(c.id) === String(chatId));
   const specialistAvatar = fileUrl(chat?.specialist_avatar);
-  const specialistName = chat?.specialist_name || "Мастер";
+  const specialistName = typeof chat?.specialist_name === "string" && chat.specialist_name.trim()
+    ? chat.specialist_name
+    : "Мастер";
   const list = messages ?? [];
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
-  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const keyboardVerticalOffset = Math.max(insets.top, 12) + HEADER_BODY_HEIGHT;
 
@@ -87,59 +85,6 @@ export default function ChatScreen() {
     }, 8000);
     return () => clearInterval(timer);
   }, [chatId, loadMessages, markAsRead]);
-
-  useEffect(() => {
-    let alive = true;
-    let channel: any = null;
-
-    (async () => {
-      const { getEcho, leaveProffiChat } = await import("../services/realtime");
-      const echo = await getEcho();
-      if (!alive || !echo) return;
-
-      const privateChannel = typeof echo.private === "function" ? echo.private(`proffi.chat.${chatId}`) : null;
-      if (!privateChannel || typeof privateChannel.listen !== "function") return;
-      channel = privateChannel;
-      channel.listen(".message.sent", (event: any) => {
-          if (!event?.message) return;
-          receiveRealtimeMessage(event.message);
-          if (String(event.message.sender_id) !== String(user?.id)) {
-            markAsRead(chatId).catch(() => undefined);
-          }
-        });
-      channel.listen(".messages.read", (event: any) => {
-          if (!event?.read_at) return;
-          markRealtimeRead(chatId, event.reader_id, event.read_at, user?.id);
-        });
-      channel.listen(".user.typing", (event: any) => {
-          if (String(event?.user_id) === String(user?.id)) return;
-          updateChatRealtime(chatId, { is_typing: Boolean(event?.is_typing) });
-          if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-          typingTimerRef.current = setTimeout(() => updateChatRealtime(chatId, { is_typing: false }), 5500);
-        });
-      channel.listen(".presence.updated", (event: any) => {
-          if (String(event?.user_id) === String(user?.id)) return;
-          updateChatRealtime(chatId, {
-            other_is_online: Boolean(event?.is_online),
-            other_last_seen_at: event?.last_seen_at ?? null,
-          });
-        });
-
-      return () => leaveProffiChat(chatId);
-    })();
-
-    return () => {
-      alive = false;
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-      if (channel && typeof channel.stopListening === "function") {
-        channel.stopListening(".message.sent");
-        channel.stopListening(".messages.read");
-        channel.stopListening(".user.typing");
-        channel.stopListening(".presence.updated");
-      }
-      import("../services/realtime").then(({ leaveProffiChat }) => leaveProffiChat(chatId)).catch(() => undefined);
-    };
-  }, [chatId, markAsRead, markRealtimeRead, receiveRealtimeMessage, updateChatRealtime, user?.id]);
 
   const scrollToEnd = useCallback((animated = true) => {
     if (list.length > 0) {
