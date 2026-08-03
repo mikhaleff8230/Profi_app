@@ -5,7 +5,7 @@ import { Platform } from "react-native";
  * Базовый URL API без суффикса /api (например https://api.treabo.ru или http://192.168.0.5:8001).
  * Задаётся в .env: EXPO_PUBLIC_API_URL
  */
-export const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8001").replace(/\/+$/, "");
+export const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "https://api.treabo.ru").replace(/\/+$/, "");
 
 export type ApiNamespace = "proffi" | "root";
 
@@ -87,6 +87,7 @@ export async function apiFetch(
 ): Promise<any> {
   const { auth = true, namespace = "proffi", ...fetchOpts } = options;
   const headers = new Headers(fetchOpts.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (fetchOpts.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
