@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  Linking,
+  NativeModules,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +25,7 @@ import type { RootStackParamList } from "../src/navigation/types";
 import type { Specialist, SpecialistReview } from "../src/types/proffi";
 import { resolveTaskPhotos } from "../src/utils/photos";
 import { timeAgo } from "../src/utils/timeAgo";
+import { useChatStore } from "../src/store/chatStore";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type R = RouteProp<RootStackParamList, "SpecialistProfile">;
@@ -29,12 +33,15 @@ type R = RouteProp<RootStackParamList, "SpecialistProfile">;
 export default function SpecialistProfileScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<R>();
-  const { specialistId } = route.params;
+  const { specialistId, chatId } = route.params;
   const { t, lang } = useLang();
+  const chat = useChatStore((s) => s.chats.find((item) => String(item.id) === String(chatId || "")));
   const [spec, setSpec] = useState<Specialist | null>(null);
   const [reviews, setReviews] = useState<SpecialistReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
+  const [phoneLoading, setPhoneLoading] = useState(false);
   const scrollPadding = useScrollBottomPadding(40);
 
   const load = useCallback(async () => {
@@ -82,6 +89,24 @@ export default function SpecialistProfileScreen() {
 
   const avatarUri = spec.avatar ? fileUrl(spec.avatar) : null;
   const portfolio = resolveTaskPhotos(spec.portfolio);
+  const revealPhone = async () => {
+    if (!chatId) return;
+    setPhoneLoading(true);
+    try {
+      const result = await apiFetch(`/chats/${chatId}/specialist-contact`, { method: "GET" });
+      setPhone(String(result.phone));
+    } catch (e) {
+      Alert.alert("Телефон недоступен", e instanceof Error ? e.message : String(e));
+    } finally { setPhoneLoading(false); }
+  };
+
+  const callPhone = () => phone && void Linking.openURL(`tel:${phone.replace(/[^+\d]/g, "")}`);
+  const copyPhone = () => {
+    if (!phone) return;
+    const clipboard = (NativeModules as Record<string, any>).Clipboard;
+    if (clipboard?.setString) { clipboard.setString(phone); Alert.alert("Скопировано", "Номер телефона скопирован."); }
+    else Alert.alert("Номер телефона", phone);
+  };
 
   return (
     <ScreenLayout>
@@ -119,6 +144,24 @@ export default function SpecialistProfileScreen() {
           <View style={styles.row}>
             <Ionicons name="location-outline" size={18} color={colors.neutral500} />
             <Text style={styles.rowText}>{spec.city}</Text>
+          </View>
+        ) : null}
+
+        {chatId ? (
+          <View style={styles.phoneCard}>
+            <Text style={styles.caps}>Телефон мастера</Text>
+            <Text style={styles.phone} selectable={Boolean(phone)}>{phone || chat?.specialist_phone_masked || "+7••••••••••"}</Text>
+            {!phone ? (
+              <TouchableOpacity style={styles.revealPhone} onPress={revealPhone} disabled={phoneLoading}>
+                {phoneLoading ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="eye-outline" size={18} color={colors.white} /><Text style={styles.revealText}>Показать номер</Text></>}
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.phoneActions}>
+                <TouchableOpacity style={styles.phoneActionPrimary} onPress={callPhone}><Ionicons name="call" size={18} color={colors.black} /><Text style={styles.phoneActionText}>Позвонить</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.phoneAction} onPress={copyPhone}><Ionicons name="copy-outline" size={18} color={colors.black} /><Text style={styles.phoneActionText}>Скопировать</Text></TouchableOpacity>
+              </View>
+            )}
+            <Text style={styles.phoneHint}>Номер доступен только в чате по вашей заявке и снова скрывается после закрытия экрана.</Text>
           </View>
         ) : null}
 
@@ -211,6 +254,9 @@ const styles = StyleSheet.create({
   lastSeenOnline: { color: colors.emerald, fontWeight: "600" },
   row: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
   rowText: { fontSize: 15 },
+  phoneCard: { borderRadius: 20, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.neutral100, padding: 16, marginBottom: 20 },
+  phone: { fontSize: 23, fontWeight: "900", color: colors.black }, revealPhone: { marginTop: 12, minHeight: 48, borderRadius: 15, backgroundColor: "#24262D", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }, revealText: { color: colors.white, fontWeight: "800" },
+  phoneActions: { flexDirection: "row", gap: 8, marginTop: 12 }, phoneActionPrimary: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: "#D9F36B", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }, phoneAction: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: colors.lavender50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }, phoneActionText: { fontSize: 13, fontWeight: "800" }, phoneHint: { marginTop: 12, fontSize: 12, lineHeight: 17, color: colors.neutral500 },
   block: { marginBottom: 20 },
   caps: { fontSize: 12, fontWeight: "600", color: colors.neutral400, textTransform: "uppercase", marginBottom: 6 },
   body: { fontSize: 15, color: colors.neutral700, lineHeight: 22 },

@@ -161,7 +161,7 @@ function parseDescriptionDetails(description: string): DetailRow[] {
 function rowsFromStructuredDetails(details: Record<string, unknown> | null | undefined): DetailRow[] {
   if (!details) return [];
   const rows: DetailRow[] = [];
-  const answers = details.question_answers;
+  const answers = Array.isArray(details.question_answers) ? details.question_answers : details.answers;
   const labels: Record<string, string> = {
     city: "Город",
     urgency: "Срок",
@@ -171,16 +171,19 @@ function rowsFromStructuredDetails(details: Record<string, unknown> | null | und
   };
 
   if (Array.isArray(answers)) {
-    answers.forEach((item) => {
+    answers.forEach((item, index) => {
       if (!item || typeof item !== "object") return;
       const record = item as Record<string, unknown>;
-      const label = stringifyDetailValue(record.question || record.label || record.key);
-      const value = stringifyDetailValue(record.answer || record.value);
+      const label = stringifyDetailValue(record.question || record.label || record.key) || `Уточнение ${index + 1}`;
+      const value = stringifyDetailValue(record.display_value || record.answer || record.value);
       if (label && value) rows.push({ label, value });
     });
   }
 
-  const skip = new Set(["question_answers", "prompt", "title", "category_id", "category_slug", "work_id"]);
+  const skip = new Set([
+    "question_answers", "answers", "request_draft_id", "catalog_version_id", "prompt", "title",
+    "category_id", "category_slug", "work_id", "location", "source", "question_id",
+  ]);
   Object.entries(details).forEach(([label, value]) => {
     if (skip.has(label)) return;
     const normalized = stringifyDetailValue(value);

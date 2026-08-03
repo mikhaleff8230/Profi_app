@@ -102,3 +102,5 @@ shop/.next/cache/webpack/client-development/9.pack
 shop/.next/cache/webpack/client-production/0.pack
 shop/node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node
 shop/public/downloads/treabo-proffi.apk
+mobile/dist/treabo-proffi-1.0.1.apk
+mobile/node_modules/expo-modules-core/android/build/intermediates/cxx/RelWithDebInfo/2h31516j/obj/armeabi-v7a/libreactnative.so

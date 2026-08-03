@@ -20,11 +20,11 @@ export default function WelcomeAuthScreen() {
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <TreaboLogo />
-        <Text style={styles.title}>Даем заработать каждому мастеру.</Text>
-        <Text style={styles.note}>Приложение для мастеров. Заказы, карта, чаты в одном месте.</Text>
+        <Text style={styles.title}>Найдём мастера для вашей задачи.</Text>
+        <Text style={styles.note}>Опишите задачу своими словами — AI уточнит детали и подготовит заявку.</Text>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
-        <PrimaryButton title="Стать мастером" onPress={() => navigation.navigate("PhoneEntry", { role: "specialist" })} />
+        <PrimaryButton title="Создать аккаунт" onPress={() => navigation.navigate("PhoneEntry", { role: "customer" })} />
         <PrimaryButton title="У меня уже есть аккаунт" variant="ghost" onPress={() => navigation.navigate("Login")} />
       </View>
     </View>

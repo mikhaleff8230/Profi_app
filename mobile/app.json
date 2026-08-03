@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Treabo",
-    "slug": "treabo",
-    "version": "1.0.6",
+    "name": "treabo-client",
+    "slug": "treabo-client",
+    "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "treabo",
+    "scheme": "treabo-client",
     "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo-client.png",
     "splash": {
       "image": "./assets/treabo-logo.png",
       "resizeMode": "contain",
@@ -14,17 +14,17 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "ru.sancan.proffi",
-      "icon": "./assets/icon.png"
+      "bundleIdentifier": "ru.treabo.client",
+      "icon": "./assets/logo-client.png"
     },
     "android": {
-      "package": "ru.sancan.proffi",
+      "package": "ru.treabo.client",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 10,
+      "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "foregroundImage": "./assets/logo-client.png",
+        "backgroundColor": "#D9F36B"
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -36,13 +36,13 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Treabo использует геолокацию, чтобы показывать задания рядом с вами."
+          "locationWhenInUsePermission": "Treabo использует геолокацию, чтобы точно указать адрес вашей заявки."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Treabo нужен доступ к фото для аватара, портфолио и файлов в заданиях."
+          "photosPermission": "Treabo нужен доступ к фото для аватара и фотографий к заявкам."
         }
       ],
       "expo-asset",

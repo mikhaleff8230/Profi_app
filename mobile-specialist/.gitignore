@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+.expo-export-test/
+dist/
+*.log
+.env
+.env.local
+
+# Firebase server credentials (secret)
+*service-account*.json
+*service_account*.json
+*firebase-adminsdk*.json
+firebase-service-account.json

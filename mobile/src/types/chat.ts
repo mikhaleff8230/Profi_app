@@ -11,6 +11,14 @@ export type Chat = {
   is_typing?: boolean;
   other_is_online?: boolean;
   other_last_seen_at?: string | null;
+  task_id?: ChatId;
+  task_title?: string | null;
+  customer_id?: UserId;
+  customer_name?: string | null;
+  specialist_id?: UserId;
+  specialist_name?: string | null;
+  specialist_avatar?: string | null;
+  specialist_phone_masked?: string | null;
 };
 
 export type Message = {

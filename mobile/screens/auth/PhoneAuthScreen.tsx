@@ -32,11 +32,6 @@ function isEmailOk(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function displayNameFromEmail(email: string, fallback: string): string {
-  const local = email.split("@")[0]?.trim() || "";
-  return local ? local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : fallback;
-}
-
 function isOtpSent(data: unknown): data is { status: "otp_sent"; otp_id: string } {
   return (
     typeof data === "object" &&
@@ -52,8 +47,9 @@ export default function PhoneAuthScreen() {
   const route = useRoute<R>();
   const { t } = useLang();
   const { signIn } = useAuth();
-  const role = route.params?.role ?? "specialist";
+  const role = route.params?.role ?? "customer";
   const [national, setNational] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -63,10 +59,11 @@ export default function PhoneAuthScreen() {
 
   const display = useMemo(() => formatRuNationalDisplay(national), [national]);
   const phoneValid = isValidRuMobileInput(national);
-  const emailValid = isEmailOk(email);
+  const nameValid = name.trim().length >= 2;
+  const emailValid = !email.trim() || isEmailOk(email);
   const passwordValid = password.length >= 4;
   const apiPhone = useMemo(() => (phoneValid ? toApiPhoneFromNational10(national) : ""), [national, phoneValid]);
-  const canSubmit = phoneValid && emailValid && passwordValid;
+  const canSubmit = phoneValid && nameValid && emailValid && passwordValid;
   const canVerify = otpCode.trim().length >= 4;
 
   const registerFallback = async () => {
@@ -75,9 +72,9 @@ export default function PhoneAuthScreen() {
       method: "POST",
       body: JSON.stringify({
         phone: apiPhone,
-        email: cleanEmail,
+        email: cleanEmail || null,
         password,
-        name: displayNameFromEmail(cleanEmail, t("auth_default_master_name")),
+        name: name.trim(),
         role,
       }),
       auth: false,
@@ -96,6 +93,10 @@ export default function PhoneAuthScreen() {
       Alert.alert(t("error_title"), t("auth_invalid_phone"));
       return;
     }
+    if (!nameValid) {
+      Alert.alert(t("error_title"), "Укажите имя");
+      return;
+    }
     if (!emailValid) {
       Alert.alert(t("error_title"), t("auth_invalid_email"));
       return;
@@ -111,9 +112,9 @@ export default function PhoneAuthScreen() {
         phone: apiPhone,
         purpose: "register" as const,
         password,
-        name: displayNameFromEmail(cleanEmail, t("auth_default_master_name")),
+        name: name.trim(),
         role,
-        email: cleanEmail,
+        email: cleanEmail || null,
       };
       try {
       const data = await apiFetch(`/auth/${role}/phone/send-otp`, {
@@ -181,9 +182,9 @@ export default function PhoneAuthScreen() {
         <TouchableOpacity style={styles.backWrap} onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="arrow-back" size={22} color={colors.black} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t("auth_master_register_title")}</Text>
+        <Text style={styles.title}>Создайте аккаунт клиента</Text>
         <Text style={styles.sub}>
-          {otpStep ? t("auth_master_register_otp_sub") : t("auth_master_register_sub")}
+          {otpStep ? "Введите код из SMS" : "Чтобы публиковать заявки и получать отклики мастеров"}
         </Text>
       </View>
 
@@ -209,9 +210,20 @@ export default function PhoneAuthScreen() {
 
             <TextInput
               style={styles.input}
+              accessibilityLabel="Имя"
+              testID="register-name"
+              placeholder="Как к вам обращаться"
+              placeholderTextColor={colors.neutral400}
+              autoCapitalize="words"
+              value={name}
+              onChangeText={setName}
+            />
+
+            <TextInput
+              style={styles.input}
               accessibilityLabel="Email регистрации"
               testID="register-email"
-              placeholder="email@example.com"
+              placeholder="Email (необязательно)"
               placeholderTextColor={colors.neutral400}
               autoCapitalize="none"
               keyboardType="email-address"

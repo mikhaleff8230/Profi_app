@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,8 +17,6 @@ type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-const TELEGRAM_URL = "https://t.me/+IKp5Qdq27MU3NGIy";
-
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
@@ -30,7 +28,7 @@ export default function HomeScreen() {
     try {
       const [cats, ts] = await Promise.all([
         apiFetch("/categories", { method: "GET" }),
-        apiFetch("/tasks", { method: "GET" }),
+        apiFetch("/tasks/mine", { method: "GET" }),
       ]);
       setCategories(Array.isArray(cats) ? cats : []);
       setTasks(Array.isArray(ts) ? ts : []);
@@ -42,47 +40,25 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   return (
     <TabScreenLayout>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.segment}>
-          <View style={styles.segmentOn}>
-            <Text style={styles.segmentOnText}>Список</Text>
-          </View>
-          <TouchableOpacity style={styles.segmentOff} onPress={() => navigation.navigate("Map")}>
-            <Text style={styles.segmentOffText}>Карта</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.telegramBanner} onPress={() => void Linking.openURL(TELEGRAM_URL)} activeOpacity={0.9}>
-          <View style={styles.telegramIcon}>
-            <Ionicons name="paper-plane" size={20} color={colors.white} />
-          </View>
-          <View style={styles.telegramText}>
-            <Text style={styles.telegramTitle}>Telegram-группа мастеров</Text>
-            <Text style={styles.telegramSub}>Новости, советы и общение по заказам Treabo</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.neutral400} />
-        </TouchableOpacity>
-
-        <View style={styles.searchRow}>
-          <TouchableOpacity style={styles.searchFake} onPress={() => navigation.navigate("TaskSearch")}>
-            <Ionicons name="search-outline" size={20} color={colors.neutral500} />
-            <Text style={styles.searchText}>Какой заказ ищете?</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.filterBtn} onPress={() => navigation.navigate("TaskFilter")}>
-            <Ionicons name="options-outline" size={22} color={colors.black} />
-          </TouchableOpacity>
+        <View style={styles.hero}>
+          <Text style={styles.heroEyebrow}>МОИ ЗАЯВКИ</Text>
+          <Text style={styles.heroTitle}>Всё, что вы поручили Treabo</Text>
+          <Text style={styles.heroText}>Создайте новую заявку через кнопку + — AI поможет сформулировать задачу.</Text>
         </View>
 
         {loading ? (
           <ActivityIndicator style={styles.loader} color={colors.neutral400} />
         ) : tasks.length === 0 ? (
-          <Text style={styles.empty}>Пока нет подходящих заказов</Text>
+          <View style={styles.emptyCard}>
+            <Ionicons name="document-text-outline" size={30} color={colors.neutral400} />
+            <Text style={styles.emptyTitle}>Заявок пока нет</Text>
+            <Text style={styles.empty}>Нажмите большую кнопку + внизу экрана и расскажите, что нужно сделать.</Text>
+          </View>
         ) : (
           <View style={styles.taskList}>
             {tasks.map((task) => (
@@ -103,55 +79,13 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.lavender50 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 96 },
-  segment: {
-    flexDirection: "row",
-    alignSelf: "flex-start",
-    backgroundColor: colors.lavender100,
-    borderRadius: 14,
-    padding: 3,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  segmentOn: { backgroundColor: colors.white, borderRadius: 11, paddingHorizontal: 18, paddingVertical: 8 },
-  segmentOff: { borderRadius: 11, paddingHorizontal: 18, paddingVertical: 8 },
-  segmentOnText: { fontSize: 13, fontWeight: "700", color: colors.black },
-  segmentOffText: { fontSize: 13, fontWeight: "700", color: colors.neutral500 },
-  telegramBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.neutral100,
-  },
-  telegramIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    backgroundColor: "#229ED9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  telegramText: { flex: 1 },
-  telegramTitle: { fontSize: 15, fontWeight: "800", color: colors.black },
-  telegramSub: { fontSize: 12, color: colors.neutral500, marginTop: 2, lineHeight: 17 },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.md },
-  searchFake: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.white,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-  },
-  searchText: { fontSize: 14, color: colors.neutral500 },
-  filterBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: colors.white, alignItems: "center", justifyContent: "center" },
+  hero: { marginTop: spacing.md, marginBottom: spacing.xl, borderRadius: 24, backgroundColor: "#F1F7D9", padding: 22 },
+  heroEyebrow: { fontSize: 11, fontWeight: "800", color: "#737D2F", letterSpacing: 1.1 },
+  heroTitle: { fontSize: 26, lineHeight: 31, fontWeight: "900", color: colors.black, marginTop: 8 },
+  heroText: { fontSize: 14, lineHeight: 21, color: colors.neutral600, marginTop: 8 },
   taskList: { gap: 12 },
   loader: { marginVertical: 24 },
-  empty: { textAlign: "center", color: colors.neutral400, paddingVertical: 24, fontSize: 14 },
+  emptyCard: { alignItems: "center", borderRadius: 22, backgroundColor: colors.white, padding: 28 },
+  emptyTitle: { fontSize: 18, fontWeight: "800", color: colors.black, marginTop: 10 },
+  empty: { textAlign: "center", color: colors.neutral500, marginTop: 8, fontSize: 14, lineHeight: 20 },
 });

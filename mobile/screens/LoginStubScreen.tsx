@@ -42,9 +42,9 @@ export default function LoginStubScreen() {
     if (!canSubmit || !apiPhone) return;
     setBusy(true);
     try {
-      const data = await apiFetch("/auth/specialist/login", {
+      const data = await apiFetch("/auth/customer/login", {
         method: "POST",
-        body: JSON.stringify({ phone: apiPhone, password, role: "specialist" }),
+        body: JSON.stringify({ phone: apiPhone, password, role: "customer" }),
         auth: false,
       });
       await signIn(data.token, data.user);

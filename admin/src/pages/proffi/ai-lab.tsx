@@ -44,6 +44,25 @@ const proposalLabels: Record<string, string> = {
   mark_irrelevant: 'Нерелевантное',
 };
 
+const modeDescriptions: Record<string, string> = {
+  catalog: 'Создаёт категории и работы. Синонимы новой работы сохраняются вместе с ней.',
+  questions: 'Создаёт вопросы и варианты ответов для уже существующих работ.',
+  full_analysis: 'Разбирает материал целиком: работы, формулировки и связанные вопросы одним пакетом.',
+};
+
+const payloadLabels: Record<string, string> = {
+  title: 'Название',
+  aliases: 'Синонимы',
+  category_id: 'Категория',
+  work_id: 'Работа',
+  service_id: 'Работа',
+  question: 'Вопрос',
+  type: 'Тип',
+  options: 'Варианты ответа',
+  relation: 'Связь',
+  term: 'Термин',
+};
+
 function fieldClass() {
   return 'w-full rounded-xl border border-border-200 bg-white px-4 py-3 text-sm text-heading outline-none transition focus:border-accent';
 }
@@ -61,37 +80,49 @@ export default function AiKnowledgeLabPage() {
   const [sourceType, setSourceType] = useState('manual_text');
   const [region, setRegion] = useState('Москва');
   const [categoryHint, setCategoryHint] = useState('');
-  const [mode, setMode] = useState('full_analysis');
+  const [mode, setMode] = useState('catalog');
   const [costLimit, setCostLimit] = useState('2');
   const [imports, setImports] = useState<AiKnowledgeImport[]>([]);
   const [proposals, setProposals] = useState<AiKnowledgeProposal[]>([]);
   const [terms, setTerms] = useState<AiKnowledgeTerm[]>([]);
+  const [termsTotal, setTermsTotal] = useState(0);
+  const [termsPage, setTermsPage] = useState(1);
+  const [termsLastPage, setTermsLastPage] = useState(1);
+  const [termSearch, setTermSearch] = useState('');
+  const [showDictionary, setShowDictionary] = useState(false);
+  const [showProposalArchive, setShowProposalArchive] = useState(false);
   const [versions, setVersions] = useState<AiKnowledgeVersion[]>([]);
   const [retrievalText, setRetrievalText] = useState('течет бачок');
   const [retrieval, setRetrieval] = useState<AiKnowledgeRetrieval | null>(null);
   const [versionAction, setVersionAction] = useState<number | null>(null);
   const [selectedImport, setSelectedImport] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [importsPage, proposalsPage, termsPage, versionsList] = await Promise.all([
+      const proposalStatus = showProposalArchive ? '' : '&exclude_statuses=rejected,superseded,published';
+      const [importsPage, proposalsPage, termsResult, versionsList] = await Promise.all([
         getProffiAdmin<LaravelPaginator<AiKnowledgeImport>>('/api/admin/ai-lab/imports?limit=50'),
         getProffiAdmin<LaravelPaginator<AiKnowledgeProposal>>(
-          `/api/admin/ai-lab/proposals?limit=100${selectedImport ? `&import_id=${selectedImport}` : ''}`,
+          `/api/admin/ai-lab/proposals?limit=100${selectedImport ? `&import_id=${selectedImport}` : ''}${proposalStatus}`,
         ),
-        getProffiAdmin<LaravelPaginator<AiKnowledgeTerm>>('/api/admin/ai-lab/terms?limit=50'),
+        getProffiAdmin<LaravelPaginator<AiKnowledgeTerm>>(
+          `/api/admin/ai-lab/terms?limit=25&page=${termsPage}${termSearch.trim() ? `&search=${encodeURIComponent(termSearch.trim())}` : ''}`,
+        ),
         getProffiAdmin<AiKnowledgeVersion[]>('/api/admin/ai-lab/versions'),
       ]);
       setImports(importsPage.data || []);
       setProposals(proposalsPage.data || []);
-      setTerms(termsPage.data || []);
+      setTerms(termsResult.data || []);
+      setTermsTotal(termsResult.total || 0);
+      setTermsLastPage(termsResult.last_page || 1);
       setVersions(versionsList || []);
     } catch (e: any) {
       setError(e.response?.data?.message || e.message || 'Не удалось загрузить лабораторию.');
     }
-  }, [selectedImport]);
+  }, [selectedImport, showProposalArchive, termSearch, termsPage]);
 
   useEffect(() => {
     void load();
@@ -161,6 +192,27 @@ export default function AiKnowledgeLabPage() {
     }
   }
 
+  async function acceptAllVisible() {
+    const proposalIds = proposals
+      .filter((proposal) => proposal.status === 'generated' || proposal.status === 'needs_clarification')
+      .map((proposal) => proposal.id);
+    if (!proposalIds.length || !window.confirm(`Принять ${proposalIds.length} предложений в черновик?`)) return;
+
+    setError('');
+    setBulkLoading(true);
+    try {
+      await postProffiAdmin('/api/admin/ai-lab/proposals/bulk-review', {
+        proposal_ids: proposalIds,
+        action: 'accept',
+      });
+      await load();
+    } catch (e: any) {
+      setError(e.response?.data?.message || e.message || 'Не удалось принять предложения.');
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
   async function runRetrieval(event: FormEvent) {
     event.preventDefault();
     setError('');
@@ -189,6 +241,26 @@ export default function AiKnowledgeLabPage() {
     }
   }
 
+  const reviewableCount = useMemo(
+    () => proposals.filter((proposal) => proposal.status === 'generated' || proposal.status === 'needs_clarification').length,
+    [proposals],
+  );
+
+  const proposalGroups = useMemo(() => {
+    const groups = new Map<string, { title: string; items: AiKnowledgeProposal[] }>();
+    proposals.forEach((proposal) => {
+      const workId = proposal.target_type === 'service'
+        ? proposal.target_id
+        : proposal.payload?.work_id || proposal.payload?.service_id;
+      const key = workId ? `work-${workId}` : `proposal-${proposal.id}`;
+      const title = workId ? `Работа #${workId}` : proposal.title;
+      const group = groups.get(key) || { title, items: [] };
+      group.items.push(proposal);
+      groups.set(key, group);
+    });
+    return Array.from(groups.values());
+  }, [proposals]);
+
   return (
     <>
       <ProffiPageHeader
@@ -201,7 +273,7 @@ export default function AiKnowledgeLabPage() {
       <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(420px,.95fr)]">
         <form onSubmit={createImport} className="rounded-2xl border border-border-200 bg-light p-6 shadow-sm">
           <div className="mb-5">
-            <h2 className="text-lg font-semibold text-heading">Быстро научить AI</h2>
+            <h2 className="text-lg font-semibold text-heading">Добавить знания</h2>
             <p className="mt-1 text-sm leading-6 text-body">
               Одна фраза на строку. Также поддерживаются строки Wordstat: фраза;частотность;регион;период.
             </p>
@@ -222,13 +294,13 @@ export default function AiKnowledgeLabPage() {
               </select>
             </label>
             <label>
-              <span className="mb-1 block text-xs font-semibold uppercase text-body">Режим</span>
+              <span className="mb-1 block text-xs font-semibold uppercase text-body">Что нужно сделать</span>
               <select className={fieldClass()} value={mode} onChange={(e) => setMode(e.target.value)}>
-                <option value="full_analysis">Полный анализ</option>
-                <option value="terms">Термины и синонимы</option>
-                <option value="catalog">Категории и работы</option>
-                <option value="questions">Вопросы</option>
+                <option value="catalog">Добавить работы</option>
+                <option value="questions">Добавить вопросы к работам</option>
+                <option value="full_analysis">Разобрать список целиком</option>
               </select>
+              <span className="mt-2 block text-xs leading-5 text-body">{modeDescriptions[mode]}</span>
             </label>
             <label>
               <span className="mb-1 block text-xs font-semibold uppercase text-body">Категория-подсказка</span>
@@ -333,57 +405,88 @@ export default function AiKnowledgeLabPage() {
       </div>
 
       <section className="min-w-0 rounded-2xl border border-border-200 bg-light p-4 shadow-sm sm:p-6">
-        <div className="mb-5">
-          <h2 className="text-lg font-semibold text-heading">Предложения AI</h2>
-          <p className="mt-1 text-sm text-body">
-            Принятые изменения остаются в черновой версии знаний до отдельного тестирования и публикации.
-          </p>
+        <div className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div>
+            <h2 className="text-lg font-semibold text-heading">Пакет предложений</h2>
+            <p className="mt-1 text-sm text-body">
+              Предложения собраны по связанным работам. Принятые изменения сначала попадут в черновик.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowProposalArchive((value) => !value)}
+              className="rounded-lg border border-border-200 px-4 py-2 text-xs font-semibold text-heading"
+            >
+              {showProposalArchive ? 'Скрыть архив' : 'Показать архив'}
+            </button>
+            {reviewableCount ? (
+              <button
+                type="button"
+                disabled={bulkLoading}
+                onClick={() => void acceptAllVisible()}
+                className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {bulkLoading ? 'Принимаю…' : `Принять всё (${reviewableCount})`}
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-          {proposals.map((proposal) => (
-            <article key={proposal.id} className="min-w-0 rounded-xl border border-border-200 p-4 sm:p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold">
-                  {proposalLabels[proposal.proposal_type] || proposal.proposal_type}
-                </span>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone(proposal.status)}`}>
-                  {proposal.status}
-                </span>
-                <span className="ml-auto text-xs font-semibold text-body">
-                  уверенность {Math.round(Number(proposal.confidence || 0) * 100)}%
+        <div className="space-y-4">
+          {proposalGroups.map((group) => (
+            <article key={`${group.title}-${group.items[0]?.id}`} className="min-w-0 rounded-xl border border-border-200 p-4 sm:p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-heading">{group.title}</h3>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-body">
+                  {group.items.length} {group.items.length === 1 ? 'изменение' : 'изменения'}
                 </span>
               </div>
-              <h3 className="mt-3 font-semibold text-heading">{proposal.title}</h3>
-              {proposal.target_type ? (
-                <div className="mt-1 text-xs text-body">
-                  {proposal.target_type} #{proposal.target_id}
-                </div>
-              ) : null}
-              <pre className="mt-3 max-h-48 max-w-full overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-700">
-                {JSON.stringify(proposal.payload, null, 2)}
-              </pre>
-              {proposal.evidence?.length ? (
-                <div className="mt-3 text-xs leading-5 text-body">
-                  Основание: {proposal.evidence.slice(0, 3).map((item) => item.text).filter(Boolean).join(' · ')}
-                </div>
-              ) : null}
-              {proposal.status === 'generated' || proposal.status === 'needs_clarification' ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => void review(proposal, 'accept')}
-                    className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white"
-                  >
-                    Принять в черновик
-                  </button>
-                  <button
-                    onClick={() => void review(proposal, 'reject')}
-                    className="rounded-lg bg-red-50 px-4 py-2 text-xs font-semibold text-red-700"
-                  >
-                    Отклонить
-                  </button>
-                </div>
-              ) : null}
+              <div className="divide-y divide-border-200">
+                {group.items.map((proposal) => (
+                  <div key={proposal.id} className="py-4 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold">
+                        {proposalLabels[proposal.proposal_type] || proposal.proposal_type}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone(proposal.status)}`}>
+                        {proposal.status}
+                      </span>
+                      <span className="ml-auto text-xs font-semibold text-body">
+                        уверенность {Math.round(Number(proposal.confidence || 0) * 100)}%
+                      </span>
+                    </div>
+                    <div className="mt-3 font-semibold text-heading">{proposal.title}</div>
+                    {Object.keys(proposal.payload || {}).length ? (
+                      <dl className="mt-3 grid gap-2 rounded-lg bg-gray-50 p-3 text-xs leading-5 sm:grid-cols-2">
+                        {Object.entries(proposal.payload).slice(0, 8).map(([key, value]) => (
+                          <div key={key} className="min-w-0">
+                            <dt className="font-semibold text-body">{payloadLabels[key] || key.split('_').join(' ')}</dt>
+                            <dd className="break-words text-heading">
+                              {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    {proposal.evidence?.length ? (
+                      <div className="mt-3 text-xs leading-5 text-body">
+                        Основание: {proposal.evidence.slice(0, 3).map((item) => item.text).filter(Boolean).join(' · ')}
+                      </div>
+                    ) : null}
+                    {proposal.status === 'generated' || proposal.status === 'needs_clarification' ? (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button onClick={() => void review(proposal, 'accept')} className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white">
+                          Принять
+                        </button>
+                        <button onClick={() => void review(proposal, 'reject')} className="rounded-lg bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
+                          Отклонить
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </article>
           ))}
         </div>
@@ -505,32 +608,73 @@ export default function AiKnowledgeLabPage() {
       </div>
 
       <section className="mt-6 min-w-0 rounded-2xl border border-border-200 bg-light p-4 shadow-sm sm:p-6">
-        <div className="mb-5">
-          <h2 className="text-lg font-semibold text-heading">Термины и связи</h2>
-          <p className="mt-1 text-sm leading-6 text-body">
-            Собственный словарь Treabo: бытовые формулировки, ошибки, профессиональные названия и их связи с каталогом.
-          </p>
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-heading">Словарь AI</h2>
+            <p className="mt-1 text-sm leading-6 text-body">
+              {termsTotal} терминов помогают AI понимать бытовые формулировки и связывать их с каталогом.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowDictionary((value) => !value)}
+            className="rounded-lg border border-border-200 px-4 py-2 text-sm font-semibold text-heading"
+          >
+            {showDictionary ? 'Свернуть словарь' : 'Открыть словарь'}
+          </button>
         </div>
-        <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {terms.map((term) => (
-            <article key={term.id} className="min-w-0 rounded-xl border border-border-200 p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold">{term.term_type}</span>
-                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${tone(term.status)}`}>{term.status}</span>
+
+        {showDictionary ? (
+          <div className="mt-5 border-t border-border-200 pt-5">
+            <input
+              className={fieldClass()}
+              value={termSearch}
+              onChange={(event) => {
+                setTermSearch(event.target.value);
+                setTermsPage(1);
+              }}
+              placeholder="Найти термин или синоним"
+            />
+            <div className="mt-4 overflow-hidden rounded-xl border border-border-200">
+              {terms.map((term) => (
+                <div key={term.id} className="flex flex-col gap-2 border-b border-border-200 p-4 last:border-b-0 sm:flex-row sm:items-center">
+                  <div className="min-w-0 flex-1">
+                    <div className="break-words font-semibold text-heading">{term.display_text}</div>
+                    <div className="mt-1 text-xs text-body">
+                      {term.links?.length
+                        ? term.links.map((link) => `${link.relation} ${link.target_type} #${link.target_id}`).join(', ')
+                        : 'Связей с каталогом пока нет'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="rounded-full bg-gray-100 px-2 py-1 font-semibold">{term.term_type}</span>
+                    <span className="text-body">частотность {term.frequency || 0}</span>
+                  </div>
+                </div>
+              ))}
+              {!terms.length ? <div className="p-6 text-center text-sm text-body">Ничего не найдено.</div> : null}
+            </div>
+            {termsLastPage > 1 ? (
+              <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+                <button
+                  type="button"
+                  disabled={termsPage <= 1}
+                  onClick={() => setTermsPage((page) => Math.max(1, page - 1))}
+                  className="rounded-lg border border-border-200 px-4 py-2 font-semibold disabled:opacity-40"
+                >
+                  Назад
+                </button>
+                <span className="text-body">Страница {termsPage} из {termsLastPage}</span>
+                <button
+                  type="button"
+                  disabled={termsPage >= termsLastPage}
+                  onClick={() => setTermsPage((page) => Math.min(termsLastPage, page + 1))}
+                  className="rounded-lg border border-border-200 px-4 py-2 font-semibold disabled:opacity-40"
+                >
+                  Далее
+                </button>
               </div>
-              <h3 className="mt-3 break-words font-semibold text-heading">{term.display_text}</h3>
-              <div className="mt-2 text-xs leading-5 text-body">
-                Частотность: {term.frequency || 0}
-                {term.links?.length
-                  ? ` · ${term.links.map((link) => `${link.relation} ${link.target_type} #${link.target_id}`).join(', ')}`
-                  : ''}
-              </div>
-            </article>
-          ))}
-        </div>
-        {!terms.length ? (
-          <div className="rounded-xl bg-gray-50 p-6 text-center text-sm text-body">
-            Термины появятся после принятия предложений.
+            ) : null}
           </div>
         ) : null}
       </section>

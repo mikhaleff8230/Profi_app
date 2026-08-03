@@ -1,5 +1,6 @@
 export type RootStackParamList = {
   MainTabs: undefined;
+  AiCreateRequest: undefined;
   Map:
     | {
         category?: string;
@@ -35,7 +36,7 @@ export type RootStackParamList = {
   TaskApply: { taskId: string; title?: string };
   CreateTask: undefined;
   ChatDetail: { chatId: string };
-  SpecialistProfile: { specialistId: string };
+  SpecialistProfile: { specialistId: string; chatId?: string };
   PhoneChange: undefined;
   IdentityVerification: undefined;
   MyReviews: undefined;
@@ -43,7 +44,8 @@ export type RootStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
-  Wallet: undefined;
+  Spacer: undefined;
+  Create: undefined;
   Chats: undefined;
   Profile: undefined;
 };

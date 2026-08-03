@@ -31,14 +31,14 @@ const DEV_SKIP_AUTH =
 const DEV_MOCK_USER: User = {
   id: "local-dev-user",
   name: "Локальная разработка",
-  role: "specialist",
+  role: "customer",
   email: "dev@local",
   is_verified: true,
   phone: "+70000000000",
 };
 
 function isAllowedAppUser(user: User | null | undefined): user is User {
-  return user?.role === "specialist";
+  return user?.role === "customer";
 }
 
 type AuthCtx = {
@@ -135,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [consumeOAuthUrl]);
 
   useEffect(() => {
-    if (!user || user.role !== "specialist") return undefined;
+    if (!user || user.role !== "customer") return undefined;
     void registerPushNotifications();
     const subscription = subscribeToNotificationLinks();
     return () => subscription.remove();
@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!isAllowedAppUser(u)) {
       await setToken(null);
       setUser(null);
-      throw new Error("Приложение доступно только мастерам");
+      throw new Error("Войдите с аккаунтом клиента");
     }
     resetEcho();
     await setToken(token);

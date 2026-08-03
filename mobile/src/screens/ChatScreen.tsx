@@ -3,11 +3,13 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   ImageBackground,
   Keyboard,
   Platform,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import {
@@ -17,7 +19,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ScreenHeader } from "../../components/ScreenHeader";
 import { CHAT_INPUT_BASE_HEIGHT, ChatInput } from "../components/ChatInput";
 import { MessageBubble } from "../components/MessageBubble";
 import { useAuth } from "../context/AuthContext";
@@ -26,11 +27,13 @@ import { useChatStore } from "../store/chatStore";
 import { LOCAL_USER_ID, type Message } from "../types/chat";
 import { colors, spacing } from "../theme";
 import type { RootStackParamList } from "../navigation/types";
+import { fileUrl } from "../api";
+import { Ionicons } from "@expo/vector-icons";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type R = RouteProp<RootStackParamList, "ChatDetail">;
 
-const HEADER_BODY_HEIGHT = 52;
+const HEADER_BODY_HEIGHT = 82;
 const COMPOSER_MIN_HEIGHT = CHAT_INPUT_BASE_HEIGHT + spacing.md * 3;
 
 export default function ChatScreen() {
@@ -55,6 +58,8 @@ export default function ChatScreen() {
   const updateChatRealtime = useChatStore((s) => s.updateChatRealtime);
 
   const chat = chats.find((c) => String(c.id) === String(chatId));
+  const specialistAvatar = fileUrl(chat?.specialist_avatar);
+  const specialistName = chat?.specialist_name || "Мастер";
   const list = messages ?? [];
 
   const [text, setText] = useState("");
@@ -198,7 +203,14 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
-      <ScreenHeader title={chat?.title ?? t("chats")} onBack={() => navigation.goBack()} />
+      <View style={styles.chatHeader}>
+        <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={23} color={colors.black} /></TouchableOpacity>
+        <TouchableOpacity style={styles.specialistHead} disabled={!chat?.specialist_id} onPress={() => chat?.specialist_id && navigation.navigate("SpecialistProfile", { specialistId: String(chat.specialist_id), chatId: String(chatId) })} activeOpacity={0.75}>
+          {specialistAvatar ? <Image source={{ uri: specialistAvatar }} style={styles.headerAvatar} /> : <View style={[styles.headerAvatar, styles.headerFallback]}><Text style={styles.headerLetter}>{specialistName.charAt(0).toUpperCase()}</Text></View>}
+          <View style={styles.headerTexts}><Text style={styles.specialistName} numberOfLines={1}>{specialistName}</Text><Text style={styles.taskTitle} numberOfLines={2}>{chat?.task_title || chat?.title || t("chats")}</Text></View>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.headerMore} disabled={!chat?.specialist_id} onPress={() => chat?.specialist_id && navigation.navigate("SpecialistProfile", { specialistId: String(chat.specialist_id), chatId: String(chatId) })}><Ionicons name="ellipsis-horizontal" size={22} color={colors.black} /></TouchableOpacity>
+      </View>
       {chat?.is_typing ? <Text style={styles.typing}>печатает...</Text> : null}
 
       <KeyboardAvoidingView
@@ -243,6 +255,10 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
+  chatHeader: { minHeight: HEADER_BODY_HEIGHT, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: colors.white, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.neutral100 },
+  headerBack: { width: 42, height: 42, alignItems: "center", justifyContent: "center" }, specialistHead: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 },
+  headerAvatar: { width: 48, height: 48, borderRadius: 24 }, headerFallback: { backgroundColor: "#D9F36B", alignItems: "center", justifyContent: "center" }, headerLetter: { fontSize: 20, fontWeight: "900", color: colors.black },
+  headerTexts: { flex: 1, minWidth: 0 }, specialistName: { fontSize: 15, fontWeight: "900", color: colors.black }, taskTitle: { marginTop: 2, fontSize: 12, lineHeight: 16, color: colors.neutral500 }, headerMore: { width: 38, height: 42, alignItems: "center", justifyContent: "center" },
   flex: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.white },
   wallpaper: { flex: 1, backgroundColor: colors.lavender50 },

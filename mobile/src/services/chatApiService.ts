@@ -5,8 +5,13 @@ import type { Chat, ChatId, Message, SendMessagePayload } from "../types/chat";
 type ApiChat = {
   id: ChatId;
   task_title?: string;
+  task_id?: ChatId;
+  customer_id?: ChatId;
   customer_name?: string;
+  specialist_id?: ChatId;
   specialist_name?: string;
+  specialist_avatar?: string | null;
+  specialist_phone_masked?: string | null;
   last_message?: string | null;
   last_message_at?: string | null;
   unread_count?: number;
@@ -40,6 +45,14 @@ function mapChat(chat: ApiChat): Chat {
     is_typing: Boolean(chat.is_typing),
     other_is_online: Boolean(chat.other_is_online),
     other_last_seen_at: chat.other_last_seen_at ?? null,
+    task_id: chat.task_id,
+    task_title: chat.task_title ?? null,
+    customer_id: chat.customer_id,
+    customer_name: chat.customer_name ?? null,
+    specialist_id: chat.specialist_id,
+    specialist_name: chat.specialist_name ?? null,
+    specialist_avatar: chat.specialist_avatar ?? null,
+    specialist_phone_masked: chat.specialist_phone_masked ?? null,
   };
 }
 

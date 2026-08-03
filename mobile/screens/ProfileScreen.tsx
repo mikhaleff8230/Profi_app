@@ -78,17 +78,19 @@ export default function ProfileScreen() {
     apiFetch("/auth/stats", { method: "GET" })
       .then(setStats)
       .catch(() => setStats(null));
-    fetchAccountSummary().then(setAccount).catch(() => setAccount(null));
-    apiFetch("/categories", { method: "GET" })
-      .then((data) => setServiceCategories(Array.isArray(data) ? data : []))
-      .catch(() => setServiceCategories([]));
-    apiFetch("/identity-verification", { method: "GET" })
-      .then((data) => {
-        const status = data?.status as IdentityStatus | undefined;
-        if (status && IDENTITY_META[status]) setIdentityStatus(status);
-      })
-      .catch(() => setIdentityStatus("not_submitted"));
-  }, []);
+    if (user?.role === "specialist") {
+      fetchAccountSummary().then(setAccount).catch(() => setAccount(null));
+      apiFetch("/categories", { method: "GET" })
+        .then((data) => setServiceCategories(Array.isArray(data) ? data : []))
+        .catch(() => setServiceCategories([]));
+      apiFetch("/identity-verification", { method: "GET" })
+        .then((data) => {
+          const status = data?.status as IdentityStatus | undefined;
+          if (status && IDENTITY_META[status]) setIdentityStatus(status);
+        })
+        .catch(() => setIdentityStatus("not_submitted"));
+    }
+  }, [user?.role]);
 
   useEffect(() => {
     if (user) {
