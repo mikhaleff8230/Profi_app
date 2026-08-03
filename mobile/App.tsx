@@ -7,8 +7,8 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { DatabaseProvider } from "./src/providers/DatabaseProvider";
 import { KeyboardRoot } from "./src/components/KeyboardRoot";
 import { AppErrorBoundary } from "./src/components/AppErrorBoundary";
-import { MobileUpdateGate } from "./src/components/MobileUpdateGate";
 import { RootNavigator } from "./src/navigation/RootNavigator";
+import { MobileUpdateGate } from "./src/components/MobileUpdateGate";
 
 export default function App() {
   return (
@@ -20,7 +20,7 @@ export default function App() {
               <LangProvider>
                 <AuthProvider>
                   <RootNavigator />
-                  <MobileUpdateGate />
+                  <MobileUpdateGate appType="client" appName="Treabo-client" />
                   <StatusBar style="dark" />
                 </AuthProvider>
               </LangProvider>

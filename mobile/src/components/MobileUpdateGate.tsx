@@ -26,6 +26,11 @@ type UpdateState = {
 
 const DISMISSED_KEY_PREFIX = "treabo_update_dismissed_build:";
 
+type MobileUpdateGateProps = {
+  appType?: "specialist" | "client";
+  appName?: string;
+};
+
 function currentBuildNumber(): number {
   const platformBuild =
     Platform.OS === "android"
@@ -61,7 +66,7 @@ function resolveUpdate(data: MobileVersionResponse): UpdateState | null {
   };
 }
 
-export function MobileUpdateGate() {
+export function MobileUpdateGate({ appType = "specialist", appName = "Treabo-specialist" }: MobileUpdateGateProps) {
   const [update, setUpdate] = useState<UpdateState | null>(null);
   const checkingRef = useRef(false);
 
@@ -69,7 +74,7 @@ export function MobileUpdateGate() {
     if (checkingRef.current || Platform.OS === "web") return;
     checkingRef.current = true;
     try {
-      const data = (await apiFetch("/mobile-version", { auth: false })) as MobileVersionResponse;
+      const data = (await apiFetch(`/mobile-version/${appType}`, { auth: false })) as MobileVersionResponse;
       const nextUpdate = resolveUpdate(data);
       if (!nextUpdate) {
         setUpdate(null);
@@ -77,7 +82,7 @@ export function MobileUpdateGate() {
       }
 
       if (!nextUpdate.required) {
-        const dismissed = await AsyncStorage.getItem(`${DISMISSED_KEY_PREFIX}${nextUpdate.latestBuild}`);
+        const dismissed = await AsyncStorage.getItem(`${DISMISSED_KEY_PREFIX}${appType}:${nextUpdate.latestBuild}`);
         if (dismissed) return;
       }
 
@@ -87,7 +92,7 @@ export function MobileUpdateGate() {
     } finally {
       checkingRef.current = false;
     }
-  }, []);
+  }, [appType]);
 
   useEffect(() => {
     void checkForUpdate();
@@ -111,7 +116,7 @@ export function MobileUpdateGate() {
 
   async function dismiss() {
     if (!update || update.required) return;
-    await AsyncStorage.setItem(`${DISMISSED_KEY_PREFIX}${update.latestBuild}`, "1");
+    await AsyncStorage.setItem(`${DISMISSED_KEY_PREFIX}${appType}:${update.latestBuild}`, "1");
     setUpdate(null);
   }
 
@@ -121,7 +126,7 @@ export function MobileUpdateGate() {
         <View style={styles.card}>
           <Text style={styles.title}>Доступно обновление</Text>
           <Text style={styles.text}>
-            Установите Treabo {update.latestVersion}, чтобы получить свежие функции и исправления.
+            Установите {appName} {update.latestVersion}, чтобы получить новые функции и исправления.
           </Text>
           {notes ? <Text style={styles.notes}>{notes}</Text> : null}
           <Pressable style={styles.primaryButton} onPress={openUpdate}>

@@ -122,6 +122,7 @@ export type TreaboResponseSettings = {
 
 export type TreaboMobileUpdateSettings = {
   id?: number;
+  app_type?: 'specialist' | 'client';
   latest_version: string;
   latest_build: number;
   min_supported_build: number;
