@@ -45,7 +45,7 @@ export default function MapScreen() {
   const listRef = useRef<FlatList<TaskWithGeo>>(null);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const sheetStartY = useRef(0);
-  const sheetExpanded = useRef(false);
+  const sheetSnap = useRef<0 | 1 | 2>(2);
   const [screenHeight, setScreenHeight] = useState(0);
   const [tasks, setTasks] = useState<TaskWithGeo[]>([]);
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
@@ -57,23 +57,25 @@ export default function MapScreen() {
   const [webviewReady, setWebviewReady] = useState(false);
   const apiKey = yandexMapsApiKey();
   const shellHtml = useMemo(() => (apiKey ? buildYandexMapShellHtml(apiKey) : ""), [apiKey]);
-  const collapsedSheetY = screenHeight * 0.58;
+  const middleSheetY = screenHeight * 0.46;
+  const collapsedSheetY = screenHeight * 0.68;
 
-  const snapSheet = useCallback((expanded: boolean) => {
-    sheetExpanded.current = expanded;
+  const snapSheet = useCallback((snap: 0 | 1 | 2) => {
+    sheetSnap.current = snap;
+    const target = snap === 0 ? 0 : snap === 1 ? middleSheetY : collapsedSheetY;
     Animated.spring(sheetTranslateY, {
-      toValue: expanded ? 0 : collapsedSheetY,
+      toValue: target,
       useNativeDriver: true,
       damping: 24,
       stiffness: 230,
       mass: 0.8,
     }).start();
-  }, [collapsedSheetY, sheetTranslateY]);
+  }, [collapsedSheetY, middleSheetY, sheetTranslateY]);
 
   useEffect(() => {
     if (!screenHeight) return;
-    sheetTranslateY.setValue(sheetExpanded.current ? 0 : collapsedSheetY);
-  }, [collapsedSheetY, screenHeight, sheetTranslateY]);
+    sheetTranslateY.setValue(sheetSnap.current === 0 ? 0 : sheetSnap.current === 1 ? middleSheetY : collapsedSheetY);
+  }, [collapsedSheetY, middleSheetY, screenHeight, sheetTranslateY]);
 
   const sheetPanResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -89,12 +91,26 @@ export default function MapScreen() {
     },
     onPanResponderRelease: (_, gesture) => {
       const projectedY = sheetStartY.current + gesture.dy + gesture.vy * 90;
-      snapSheet(projectedY < collapsedSheetY / 2);
+      if (gesture.vy < -1.05 || projectedY < middleSheetY * 0.45) {
+        snapSheet(0);
+        return;
+      }
+      if (gesture.vy > 1.05) {
+        snapSheet(projectedY > middleSheetY ? 2 : 1);
+        return;
+      }
+      const snaps = [0, middleSheetY, collapsedSheetY] as const;
+      const nearest = snaps.reduce((best, value, index) =>
+        Math.abs(value - projectedY) < Math.abs(snaps[best] - projectedY) ? index : best, 0);
+      snapSheet(nearest as 0 | 1 | 2);
     },
     onPanResponderTerminate: (_, gesture) => {
-      snapSheet(sheetStartY.current + gesture.dy < collapsedSheetY / 2);
+      const position = sheetStartY.current + gesture.dy;
+      if (position < middleSheetY / 2) snapSheet(0);
+      else if (position < (middleSheetY + collapsedSheetY) / 2) snapSheet(1);
+      else snapSheet(2);
     },
-  }), [collapsedSheetY, sheetTranslateY, snapSheet]);
+  }), [collapsedSheetY, middleSheetY, sheetTranslateY, snapSheet]);
 
   const taskFilters = useMemo<TaskFilters>(
     () => ({
@@ -380,10 +396,10 @@ const styles = StyleSheet.create({
   },
   missingTitle: { ...typography.headline },
   missingText: { ...typography.small, color: colors.neutral500, textAlign: "center" },
-  sheetDragArea: { paddingTop: 8 },
+  sheetDragArea: { minHeight: 76, paddingTop: 14, paddingBottom: 4 },
   sheetHandle: {
-    width: 44,
-    height: 5,
+    width: 64,
+    height: 6,
     borderRadius: 3,
     backgroundColor: colors.neutral300,
     alignSelf: "center",
@@ -393,8 +409,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     paddingHorizontal: spacing.xl,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   listHeadTitle: { fontSize: 14, fontWeight: "700", flex: 1 },
   listHeadCount: { fontSize: 13, color: colors.neutral500, fontWeight: "600" },

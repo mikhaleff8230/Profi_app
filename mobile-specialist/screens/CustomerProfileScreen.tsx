@@ -15,13 +15,15 @@ type R = RouteProp<RootStackParamList, "CustomerProfile">;
 export default function CustomerProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<R>();
-  const chat = useChatStore((s) => s.chats.find((item) => String(item.id) === String(params.chatId)));
+  const chat = useChatStore((s) => params.chatId ? s.chats.find((item) => String(item.id) === String(params.chatId)) : undefined);
   const [phone, setPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const avatar = fileUrl(chat?.customer_avatar);
-  const name = chat?.customer_name || "Клиент Treabo";
+  const avatar = fileUrl(chat?.customer_avatar ?? params.customerAvatar);
+  const name = chat?.customer_name || params.customerName || "Клиент Treabo";
+  const canRevealPhone = Boolean(params.chatId);
 
   const revealPhone = async () => {
+    if (!params.chatId) return;
     setLoading(true);
     try {
       const result = await apiFetch(`/chats/${params.chatId}/customer-contact`, { method: "GET" });
@@ -47,11 +49,11 @@ export default function CustomerProfileScreen() {
       <View style={styles.content}>
         {avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={[styles.avatar, styles.fallback]}><Text style={styles.letter}>{name.charAt(0).toUpperCase()}</Text></View>}
         <Text style={styles.name}>{name}</Text>
-        <Text style={styles.task} numberOfLines={3}>{chat?.task_title || "Задание Treabo"}</Text>
+        <Text style={styles.task} numberOfLines={3}>{chat?.task_title || params.taskTitle || "Задание Treabo"}</Text>
         <View style={styles.phoneCard}>
           <Text style={styles.phoneLabel}>Телефон клиента</Text>
-          <Text style={styles.phone} selectable={Boolean(phone)}>{phone || chat?.customer_phone_masked || "+7••••••••••"}</Text>
-          {!phone ? <TouchableOpacity style={styles.reveal} onPress={revealPhone} disabled={loading}>{loading ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="eye-outline" size={19} color={colors.white} /><Text style={styles.revealText}>Показать номер</Text></>}</TouchableOpacity> : <View style={styles.actions}><TouchableOpacity style={styles.call} onPress={call}><Ionicons name="call" size={20} color={colors.black} /><Text style={styles.actionText}>Позвонить</Text></TouchableOpacity><TouchableOpacity style={styles.copy} onPress={copy}><Ionicons name="copy-outline" size={20} color={colors.black} /><Text style={styles.actionText}>Скопировать</Text></TouchableOpacity></View>}
+          <Text style={styles.phone} selectable={Boolean(phone)}>{phone || (canRevealPhone ? chat?.customer_phone_masked : null) || "***********"}</Text>
+          {canRevealPhone && (!phone ? <TouchableOpacity style={styles.reveal} onPress={revealPhone} disabled={loading}>{loading ? <ActivityIndicator color={colors.white} /> : <><Ionicons name="eye-outline" size={19} color={colors.white} /><Text style={styles.revealText}>Показать номер</Text></>}</TouchableOpacity> : <View style={styles.actions}><TouchableOpacity style={styles.call} onPress={call}><Ionicons name="call" size={20} color={colors.black} /><Text style={styles.actionText}>Позвонить</Text></TouchableOpacity><TouchableOpacity style={styles.copy} onPress={copy}><Ionicons name="copy-outline" size={20} color={colors.black} /><Text style={styles.actionText}>Скопировать</Text></TouchableOpacity></View>)}
           <Text style={styles.notice}>Номер доступен только мастеру, который откликнулся на это задание. После закрытия экрана он снова будет скрыт.</Text>
         </View>
       </View>

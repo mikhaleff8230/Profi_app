@@ -24,6 +24,7 @@ export type Task = {
   status: string;
   customer_id: string;
   customer_name?: string | null;
+  customer_avatar?: unknown;
   accepted_specialist_id?: string | null;
   photos?: TaskPhoto[];
   lat?: number | null;

@@ -19,7 +19,7 @@ import { ScreenLayout } from "../components/ScreenLayout";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import { apiFetch } from "../src/api";
+import { apiFetch, fileUrl } from "../src/api";
 import { useAuth } from "../src/context/AuthContext";
 import { useLang } from "../src/context/LangContext";
 import { useChatStore } from "../src/store/chatStore";
@@ -47,7 +47,7 @@ type SpecInfo = {
   application_status?: string | null;
   chat_id?: string | null;
   rank?: number;
-  customer?: { id: string; name: string; last_seen?: string };
+  customer?: { id: string; name: string; avatar?: unknown; last_seen?: string };
 };
 
 type DetailRow = {
@@ -389,6 +389,9 @@ export default function TaskDetailScreen() {
   const photos = resolveTaskPhotos(task.photos);
   const hasCoords = task.lat != null && task.lng != null;
   const budgetLabel = formatTaskBudget(task);
+  const budgetMin = task.budget_min != null ? new Intl.NumberFormat("ru-RU").format(task.budget_min) : null;
+  const budgetMax = task.budget_max != null ? new Intl.NumberFormat("ru-RU").format(task.budget_max) : null;
+  const isBudgetRange = task.budget_type === "range" && Boolean(budgetMin && budgetMax);
 
   return (
     <ScreenLayout bottomInset={!showFooter}>
@@ -400,11 +403,7 @@ export default function TaskDetailScreen() {
             <TouchableOpacity onPress={deleteTask}>
               <Ionicons name="ellipsis-horizontal" size={22} color={colors.neutral500} />
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => {}}>
-              <Ionicons name="ellipsis-horizontal" size={22} color={colors.neutral500} />
-            </TouchableOpacity>
-          )
+          ) : undefined
         }
       />
       <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.scroll}>
@@ -445,12 +444,22 @@ export default function TaskDetailScreen() {
             {specInfo?.customer && (
               <TouchableOpacity
                 style={styles.customerRow}
-                onPress={() => {}}
+                onPress={() => navigation.navigate("CustomerProfile", {
+                  chatId: chatId || undefined,
+                  customerId: String(specInfo.customer?.id || task.customer_id),
+                  customerName: specInfo.customer?.name || task.customer_name || undefined,
+                  customerAvatar: specInfo.customer?.avatar ?? task.customer_avatar,
+                  taskTitle: task.title,
+                })}
                 activeOpacity={0.9}
               >
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarTxt}>{specInfo.customer.name.charAt(0).toUpperCase()}</Text>
-                </View>
+                {fileUrl(specInfo.customer.avatar ?? task.customer_avatar) ? (
+                  <Image source={{ uri: fileUrl(specInfo.customer.avatar ?? task.customer_avatar)! }} style={styles.avatar} />
+                ) : (
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarTxt}>{specInfo.customer.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.custName}>{specInfo.customer.name}</Text>
                   <Text style={styles.custSub}>
@@ -471,7 +480,22 @@ export default function TaskDetailScreen() {
         {budgetLabel && (
           <View style={styles.budgetCard}>
             <Text style={styles.budgetLabel}>Бюджет задания</Text>
-            <Text style={styles.budgetValue}>{budgetLabel}</Text>
+            {isBudgetRange ? (
+              <View style={styles.budgetRange}>
+                <View style={styles.budgetPill}>
+                  <Text style={styles.budgetPrefix}>от</Text>
+                  <Text style={styles.budgetAmount}>{budgetMin}</Text>
+                  <Text style={styles.budgetCurrency}>₽</Text>
+                </View>
+                <View style={styles.budgetPill}>
+                  <Text style={styles.budgetPrefix}>до</Text>
+                  <Text style={styles.budgetAmount}>{budgetMax}</Text>
+                  <Text style={styles.budgetCurrency}>₽</Text>
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.budgetValue}>{budgetLabel}</Text>
+            )}
           </View>
         )}
 
@@ -715,14 +739,28 @@ const styles = StyleSheet.create({
   desc: { fontSize: 16, color: colors.neutral700, lineHeight: 24 },
   sectionCard: { backgroundColor: colors.white, marginBottom: 16 },
   budgetCard: {
-    borderRadius: 24,
+    borderRadius: 20,
     backgroundColor: "#D9F36B",
-    paddingVertical: 18,
-    paddingHorizontal: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 16,
   },
-  budgetLabel: { fontSize: 13, fontWeight: "700", color: colors.neutral700, marginBottom: 6 },
-  budgetValue: { fontSize: 28, lineHeight: 34, fontWeight: "800", color: colors.black },
+  budgetLabel: { fontSize: 12, fontWeight: "700", color: colors.neutral700, marginBottom: 8 },
+  budgetValue: { fontSize: 23, lineHeight: 29, fontWeight: "700", color: colors.black },
+  budgetRange: { flexDirection: "row", gap: 8 },
+  budgetPill: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.72)",
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+  },
+  budgetPrefix: { fontSize: 12, fontWeight: "600", color: colors.neutral600 },
+  budgetAmount: { fontSize: 20, lineHeight: 26, fontWeight: "700", color: colors.black },
+  budgetCurrency: { fontSize: 13, lineHeight: 18, fontWeight: "700", color: colors.neutral700 },
   metaCard: { backgroundColor: colors.lavender50, borderWidth: 0, gap: 8, marginBottom: 16 },
   detailsCard: { backgroundColor: colors.white, marginBottom: 16 },
   detailsList: { gap: 10 },

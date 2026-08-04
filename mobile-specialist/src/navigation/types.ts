@@ -36,7 +36,13 @@ export type RootStackParamList = {
   TaskApply: { taskId: string; title?: string };
   CreateTask: undefined;
   ChatDetail: { chatId: string };
-  CustomerProfile: { chatId: string };
+  CustomerProfile: {
+    chatId?: string;
+    customerId?: string;
+    customerName?: string;
+    customerAvatar?: unknown;
+    taskTitle?: string;
+  };
   SpecialistProfile: { specialistId: string };
   PhoneChange: undefined;
   IdentityVerification: undefined;
