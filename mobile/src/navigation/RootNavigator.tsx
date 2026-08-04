@@ -55,7 +55,6 @@ function MainTabs() {
         tabBarIcon: ({ color, size }) => {
           const icons: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
             Home: "home-outline",
-            Spacer: "ellipse-outline",
             Create: "add",
             Chats: "chatbubble-ellipses-outline",
             Profile: "person-outline",
@@ -68,11 +67,10 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: t("tab_home"), tabBarLabel: t("tab_home") }} />
-      <Tab.Screen name="Spacer" component={CreatePlaceholder} options={{ tabBarButton: () => <View />, tabBarLabel: () => null }} />
       <Tab.Screen
         name="Create"
         component={CreatePlaceholder}
-        options={{ title: "Создать", tabBarLabel: "Создать" }}
+        options={{ title: "Создать", tabBarLabel: () => null }}
         listeners={({ navigation }) => ({ tabPress: (event) => { event.preventDefault(); navigation.getParent()?.navigate("AiCreateRequest"); } })}
       />
       <Tab.Screen name="Chats" component={ChatsScreen} options={{ title: t("tab_chats"), tabBarLabel: t("tab_chats"), tabBarBadge: unreadChats > 0 ? (unreadChats > 99 ? "99+" : unreadChats) : undefined }} />

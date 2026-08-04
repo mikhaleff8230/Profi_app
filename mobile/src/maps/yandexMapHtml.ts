@@ -47,7 +47,7 @@ function stripHtml(value: unknown): string {
 }
 
 export function yandexMapsApiKey(): string {
-  return process.env.EXPO_PUBLIC_YANDEX_MAPS_API_KEY || "";
+  return process.env.EXPO_PUBLIC_YANDEX_MAPS_API_KEY?.trim() || "ba1368db-30d3-4251-9279-2888ad44bb4c";
 }
 
 export function formatMapOrderCount(count: number, _lang: string): string {
@@ -224,7 +224,7 @@ export function buildYandexMapShellHtml(apiKey: string): string {
             self.clusterer.add(placemark);
             self.placemarks[point.id] = placemark;
           });
-          if (!self.didFitBounds && points && points.length === 1 && !highlightedId) {
+          if (!self.didFitBounds && points && points.length === 1) {
             self.map.setCenter([points[0].lat, points[0].lng], 13);
             self.didFitBounds = true;
           } else if (!self.didFitBounds && points && points.length > 1 && !highlightedId) {

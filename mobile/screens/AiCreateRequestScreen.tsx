@@ -25,7 +25,7 @@ type Message = { id: string; role: "assistant" | "user"; text: string };
 type Option = { id: string | number; name: string };
 
 function actionMessage(response: DraftResponse): string {
-  const action = response.data.ui_action;
+  const action = response?.data?.ui_action;
   if (!action) return "Продолжим";
   if (action.type === "ask_question") return action.question.text;
   return "message" in action ? action.message || "Продолжим" : "Продолжим";
@@ -52,9 +52,14 @@ export default function AiCreateRequestScreen() {
   const [choices, setChoices] = useState<Option[]>([]);
   const [multiValues, setMultiValues] = useState<unknown[]>([]);
 
-  const draft = response?.data.draft;
-  const action = response?.data.ui_action;
-  const progress = response?.data.progress?.percent || 0;
+  const draft = response?.data?.draft;
+  const action = response?.data?.ui_action;
+  const rawProgress = response?.data?.progress?.percent;
+  const progress = Number.isFinite(Number(rawProgress))
+    ? Math.max(0, Math.min(100, Number(rawProgress)))
+    : draft
+      ? 100
+      : 0;
 
   useEffect(() => {
     restoreDraft().then((saved) => {

@@ -44,7 +44,6 @@ export type RootStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
-  Spacer: undefined;
   Create: undefined;
   Chats: undefined;
   Profile: undefined;
