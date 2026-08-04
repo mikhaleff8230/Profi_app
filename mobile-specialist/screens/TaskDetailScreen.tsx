@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -54,8 +55,9 @@ type DetailRow = {
   value: string;
 };
 
-function TaskInlineMap({ task }: { task: Task }) {
+function TaskInlineMap({ task, expanded = false }: { task: Task; expanded?: boolean }) {
   const webRef = useRef<WebView>(null);
+  const { height: windowHeight } = useWindowDimensions();
   const [canLoadMap, setCanLoadMap] = useState(false);
   const apiKey = yandexMapsApiKey();
   const html = useMemo(() => (apiKey ? buildYandexMapShellHtml(apiKey) : ""), [apiKey]);
@@ -120,7 +122,7 @@ function TaskInlineMap({ task }: { task: Task }) {
       }}
       javaScriptEnabled
       domStorageEnabled
-      style={styles.staticMap}
+      style={[styles.staticMap, expanded && { height: Math.max(320, Math.round(windowHeight * 0.5)) }]}
     />
   );
 }
@@ -204,6 +206,7 @@ export default function TaskDetailScreen() {
   const [categories, setCategories] = useState<CategoryTileData[]>([]);
   const [apps, setApps] = useState<AppRow[]>([]);
   const [specInfo, setSpecInfo] = useState<SpecInfo | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [applyPreview, setApplyPreview] = useState<ApplicationPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -511,12 +514,20 @@ export default function TaskDetailScreen() {
             <View style={styles.mapHead}>
               <Ionicons name="home-outline" size={18} color={colors.black} />
               <Text style={styles.h2Small}>{t("address_label")}</Text>
+              <TouchableOpacity
+                style={styles.mapExpandButton}
+                onPress={() => setMapExpanded((value) => !value)}
+                accessibilityRole="button"
+                accessibilityLabel={mapExpanded ? "Свернуть карту" : "Раскрыть карту"}
+              >
+                <Ionicons name={mapExpanded ? "contract-outline" : "expand-outline"} size={20} color={colors.black} />
+              </TouchableOpacity>
             </View>
             <Text style={styles.addressText}>
               {[task.city, task.address].filter(Boolean).join(", ")}
             </Text>
             {hasCoords ? (
-              <TaskInlineMap task={task} />
+              <TaskInlineMap task={task} expanded={mapExpanded} />
             ) : (
               <View style={styles.mapPlaceholder}>
                 <Ionicons name="map-outline" size={28} color={colors.neutral400} />
@@ -725,6 +736,15 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 15, lineHeight: 21, color: colors.black },
   mapCard: { backgroundColor: colors.white, marginBottom: 16, gap: 10 },
   mapHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  mapExpandButton: {
+    marginLeft: "auto",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.lavender50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   addressText: { fontSize: 14, color: colors.neutral700, lineHeight: 20 },
   staticMap: { width: "100%", height: 180, borderRadius: 16, backgroundColor: colors.lavender50 },
   mapPlaceholder: {

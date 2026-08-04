@@ -224,7 +224,7 @@ export function buildYandexMapShellHtml(apiKey: string): string {
             self.clusterer.add(placemark);
             self.placemarks[point.id] = placemark;
           });
-          if (!self.didFitBounds && points && points.length === 1 && !highlightedId) {
+          if (!self.didFitBounds && points && points.length === 1) {
             self.map.setCenter([points[0].lat, points[0].lng], 13);
             self.didFitBounds = true;
           } else if (!self.didFitBounds && points && points.length > 1 && !highlightedId) {
