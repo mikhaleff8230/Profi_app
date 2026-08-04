@@ -47,7 +47,7 @@ function stripHtml(value: unknown): string {
 }
 
 export function yandexMapsApiKey(): string {
-  return process.env.EXPO_PUBLIC_YANDEX_MAPS_API_KEY || "";
+  return process.env.EXPO_PUBLIC_YANDEX_MAPS_API_KEY?.trim() || "ba1368db-30d3-4251-9279-2888ad44bb4c";
 }
 
 export function formatMapOrderCount(count: number, _lang: string): string {

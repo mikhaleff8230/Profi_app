@@ -2,7 +2,7 @@
   "expo": {
     "name": "Treabo. Кабинет мастера",
     "slug": "treabo-specialist",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "orientation": "portrait",
     "scheme": "treabo-specialist",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
     "android": {
       "package": "ru.treabo.specialist",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 14,
+      "versionCode": 15,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-specialist.png",

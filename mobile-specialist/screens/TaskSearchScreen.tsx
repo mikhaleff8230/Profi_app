@@ -56,8 +56,14 @@ export default function TaskSearchScreen() {
 
   return (
     <ScreenLayout bottomInset={false}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={[styles.root, { paddingBottom: 96 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.root,
+            { paddingTop: Math.max(insets.top + spacing.md, spacing.xl), paddingBottom: 96 + insets.bottom },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color={colors.neutral500} />
             <TextInput
