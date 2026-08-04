@@ -2,7 +2,7 @@
   "expo": {
     "name": "Treabo. Кабинет мастера",
     "slug": "treabo-specialist",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "orientation": "portrait",
     "scheme": "treabo-specialist",
     "userInterfaceStyle": "light",
@@ -14,13 +14,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "ru.sancan.proffi",
+      "bundleIdentifier": "ru.treabo.specialist",
       "icon": "./assets/logo-specialist.png"
     },
     "android": {
-      "package": "ru.sancan.proffi",
+      "package": "ru.treabo.specialist",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 13,
+      "versionCode": 14,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-specialist.png",

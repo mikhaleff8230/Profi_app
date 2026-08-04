@@ -1,4 +1,4 @@
-package ru.sancan.proffi
+package ru.treabo.specialist
 
 import android.os.Build
 import android.os.Bundle
