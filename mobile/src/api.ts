@@ -16,7 +16,13 @@ function resolveApiUrl(path: string, namespace: ApiNamespace = "proffi"): string
 }
 
 /** Публичный URL файла с бэкенда Proffi */
-export function fileUrl(path: string | null | undefined): string | null {
+export function fileUrl(value: unknown): string | null {
+  let path: string | null = typeof value === "string" ? value : null;
+  if (!path && value && typeof value === "object") {
+    const file = value as Record<string, unknown>;
+    const candidate = file.url ?? file.path ?? file.original ?? file.thumbnail;
+    path = typeof candidate === "string" ? candidate : null;
+  }
   if (!path) return null;
   if (path.startsWith("blob:")) return path;
   if (path.startsWith("http")) {

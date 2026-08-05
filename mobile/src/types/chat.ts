@@ -17,7 +17,7 @@ export type Chat = {
   customer_name?: string | null;
   specialist_id?: UserId;
   specialist_name?: string | null;
-  specialist_avatar?: string | null;
+  specialist_avatar?: unknown;
   specialist_phone_masked?: string | null;
 };
 

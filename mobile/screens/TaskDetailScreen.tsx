@@ -753,6 +753,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: 12,
     fontSize: 15,
+    color: colors.black,
     textAlignVertical: "top",
   },
   input: {
@@ -760,6 +761,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: 14,
     fontSize: 16,
+    color: colors.black,
   },
   footerRow: { flexDirection: "row", gap: 10 },
   half: { flex: 1 },

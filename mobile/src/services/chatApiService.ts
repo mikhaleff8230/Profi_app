@@ -10,7 +10,7 @@ type ApiChat = {
   customer_name?: string;
   specialist_id?: ChatId;
   specialist_name?: string;
-  specialist_avatar?: string | null;
+  specialist_avatar?: unknown;
   specialist_phone_masked?: string | null;
   last_message?: string | null;
   last_message_at?: string | null;
