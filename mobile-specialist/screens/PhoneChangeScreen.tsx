@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScreenLayout } from "../components/ScreenLayout";
@@ -24,13 +24,15 @@ export default function PhoneChangeScreen() {
   const [national, setNational] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpId, setOtpId] = useState<string | null>(null);
+  const [otpChannel, setOtpChannel] = useState<"wcall" | "telegram">("wcall");
+  const [callTo, setCallTo] = useState("");
   const [busy, setBusy] = useState(false);
 
   const display = useMemo(() => formatRuNationalDisplay(national), [national]);
   const phoneValid = isValidRuMobileInput(national);
   const apiPhone = phoneValid ? toApiPhoneFromNational10(national) : "";
 
-  const sendOtp = async () => {
+  const sendOtp = async (channel: "wcall" | "telegram" = "wcall") => {
     if (!phoneValid || !apiPhone) {
       Alert.alert("Ошибка", "Введите корректный номер");
       return;
@@ -39,11 +41,12 @@ export default function PhoneChangeScreen() {
     try {
       const data = await apiFetch("/auth/phone/change/send-otp", {
         method: "POST",
-        body: JSON.stringify({ phone: apiPhone }),
+        body: JSON.stringify({ phone: apiPhone, channel }),
       });
       if (data?.otp_id) {
         setOtpId(data.otp_id);
-        Alert.alert("Код отправлен", "Введите SMS-код для нового номера");
+        setOtpChannel(data.channel === "telegram" ? "telegram" : "wcall");
+        setCallTo(data.call_to || "");
       }
     } catch (e: unknown) {
       Alert.alert("Ошибка", e instanceof Error ? e.message : String(e));
@@ -53,12 +56,12 @@ export default function PhoneChangeScreen() {
   };
 
   const verify = async () => {
-    if (!otpId || otpCode.trim().length < 4) return;
+    if (!otpId || (otpChannel !== "wcall" && otpCode.trim().length < 4)) return;
     setBusy(true);
     try {
       const data = await apiFetch("/auth/phone/verify-otp", {
         method: "POST",
-        body: JSON.stringify({ phone: apiPhone, otp_id: otpId, code: otpCode.trim() }),
+        body: JSON.stringify({ phone: apiPhone, otp_id: otpId, code: otpChannel === "wcall" ? "" : otpCode.trim() }),
       });
       if (data?.user) setUser(data.user);
       Alert.alert("Готово", "Номер телефона обновлён");
@@ -74,7 +77,7 @@ export default function PhoneChangeScreen() {
     <ScreenLayout>
       <ScreenHeader title="Сменить телефон" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.hint}>Новый номер подтверждается SMS-кодом.</Text>
+        <Text style={styles.hint}>Новый номер подтверждается бесплатным звонком.</Text>
         <TextInput
           style={styles.input}
           value={display}
@@ -84,18 +87,19 @@ export default function PhoneChangeScreen() {
           placeholderTextColor={colors.neutral400}
         />
         {!otpId ? (
-          <PrimaryButton title="Отправить код" onPress={sendOtp} loading={busy} disabled={!phoneValid} />
+          <PrimaryButton title="Продолжить" onPress={() => void sendOtp()} loading={busy} disabled={!phoneValid} />
         ) : (
           <>
-            <TextInput
+            {otpChannel === "wcall" ? <View><Text style={styles.hint}>Позвоните на номер</Text><Text style={styles.callNumber} onPress={() => void Linking.openURL(`tel:${callTo}`)}>{callTo}</Text></View> : <TextInput
               style={styles.input}
               value={otpCode}
               onChangeText={(v) => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
               keyboardType="number-pad"
-              placeholder="Код из SMS"
+              placeholder="Код из Telegram"
               placeholderTextColor={colors.neutral400}
-            />
-            <PrimaryButton title="Подтвердить" onPress={verify} loading={busy} disabled={otpCode.trim().length < 4} />
+            />}
+            <PrimaryButton title={otpChannel === "wcall" ? "Я позвонил — проверить" : "Подтвердить"} onPress={verify} loading={busy} disabled={otpChannel !== "wcall" && otpCode.trim().length < 4} />
+            {otpChannel === "wcall" && <PrimaryButton title="Получить код в Telegram" onPress={() => void sendOtp("telegram")} loading={busy} />}
           </>
         )}
       </ScrollView>
@@ -106,6 +110,7 @@ export default function PhoneChangeScreen() {
 const styles = StyleSheet.create({
   scroll: { padding: spacing.lg, gap: spacing.md },
   hint: { ...typography.body, color: colors.neutral500, marginBottom: spacing.sm },
+  callNumber: { fontSize: 24, fontWeight: "800", color: colors.black, textAlign: "center" },
   input: {
     borderWidth: 1,
     borderColor: colors.neutral100,

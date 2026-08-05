@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -32,27 +33,43 @@ export default function LoginStubScreen() {
   const [national, setNational] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [otpId, setOtpId] = useState("");
+  const [otpChannel, setOtpChannel] = useState<"wcall" | "telegram">("wcall");
+  const [callTo, setCallTo] = useState("");
+  const [otpCode, setOtpCode] = useState("");
 
   const display = useMemo(() => formatRuNationalDisplay(national), [national]);
   const phoneValid = isValidRuMobileInput(national);
   const apiPhone = useMemo(() => (phoneValid ? toApiPhoneFromNational10(national) : ""), [national, phoneValid]);
   const canSubmit = phoneValid && password.length >= 4;
 
-  const onSubmit = async () => {
+  const onSubmit = async (channel: "wcall" | "telegram" = "wcall") => {
     if (!canSubmit || !apiPhone) return;
     setBusy(true);
     try {
-      const data = await apiFetch("/auth/customer/login", {
+      const data = await apiFetch(channel === "telegram" ? "/auth/customer/phone/send-otp" : "/auth/customer/login", {
         method: "POST",
-        body: JSON.stringify({ phone: apiPhone, password, role: "customer" }),
+        body: JSON.stringify({ phone: apiPhone, password, role: "customer", purpose: "login", channel }),
         auth: false,
       });
+      if (data?.otp_id) {
+        setOtpId(data.otp_id); setOtpChannel(data.channel === "telegram" ? "telegram" : "wcall"); setCallTo(data.call_to || ""); return;
+      }
       await signIn(data.token, data.user);
     } catch (e: unknown) {
       Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
+  };
+
+  const verify = async () => {
+    if (!otpId) return;
+    setBusy(true);
+    try {
+      const data = await apiFetch("/auth/customer/phone/verify-otp", { method: "POST", body: JSON.stringify({ phone: apiPhone, otp_id: otpId, code: otpChannel === "wcall" ? "" : otpCode.trim() }), auth: false });
+      await signIn(data.token, data.user);
+    } catch (e: unknown) { Alert.alert(t("error_title"), e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   };
 
   const onChangeNational = (text: string) => {
@@ -71,6 +88,9 @@ export default function LoginStubScreen() {
       </View>
 
       <View style={styles.body}>
+        {otpId ? <>
+          {otpChannel === "wcall" ? <View style={styles.callBox}><Text>Позвоните на номер</Text><Text style={styles.callNumber} onPress={() => void Linking.openURL(`tel:${callTo}`)}>{callTo}</Text><Text>Звонок автоматически сбросится</Text></View> : <TextInput style={styles.input} value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" placeholder="Код из Telegram" />}
+        </> : <>
         <View style={styles.phoneRow}>
           <View style={styles.countryPill}>
             <Text style={styles.flag}>🇷🇺</Text>
@@ -97,6 +117,7 @@ export default function LoginStubScreen() {
           value={password}
           onChangeText={setPassword}
         />
+        </>}
       </View>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
@@ -104,12 +125,13 @@ export default function LoginStubScreen() {
           style={[styles.cta, !canSubmit && styles.ctaDisabled]}
           accessibilityLabel="Войти"
           testID="login-submit"
-          onPress={onSubmit}
-          disabled={!canSubmit || busy}
+          onPress={() => void (otpId ? verify() : onSubmit())}
+          disabled={(!otpId && !canSubmit) || (otpId && otpChannel === "telegram" && otpCode.length < 4) || busy}
           activeOpacity={0.9}
         >
-          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>{t("login_submit")}</Text>}
+          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>{otpId ? (otpChannel === "wcall" ? "Я позвонил — проверить" : "Подтвердить") : t("login_submit")}</Text>}
         </TouchableOpacity>
+        {otpId && otpChannel === "wcall" && <TouchableOpacity onPress={() => void onSubmit("telegram")}><Text style={styles.registerLink}>Получить код в Telegram</Text></TouchableOpacity>}
         <TouchableOpacity onPress={() => navigation.navigate("Welcome")}>
           <Text style={styles.registerLink}>{t("go_to_register")}</Text>
         </TouchableOpacity>
@@ -166,4 +188,6 @@ const styles = StyleSheet.create({
   ctaDisabled: { backgroundColor: colors.neutral300 },
   ctaText: { color: colors.white, fontSize: 16, fontWeight: "700" },
   registerLink: { textAlign: "center", color: colors.neutral600, fontSize: 14, fontWeight: "600" },
+  callBox: { backgroundColor: colors.neutral100, borderRadius: radii.lg, padding: 18, alignItems: "center", gap: 8 },
+  callNumber: { color: colors.black, fontSize: 24, fontWeight: "800" },
 });

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -37,7 +38,7 @@ function displayNameFromEmail(email: string, fallback: string): string {
   return local ? local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : fallback;
 }
 
-function isOtpSent(data: unknown): data is { status: "otp_sent"; otp_id: string } {
+function isOtpSent(data: unknown): data is { status: "otp_sent"; otp_id: string; channel?: "wcall" | "telegram"; call_to?: string | null } {
   return (
     typeof data === "object" &&
     data !== null &&
@@ -59,6 +60,8 @@ export default function PhoneAuthScreen() {
   const [otpCode, setOtpCode] = useState("");
   const [otpId, setOtpId] = useState<string | null>(null);
   const [otpStep, setOtpStep] = useState(false);
+  const [otpChannel, setOtpChannel] = useState<"wcall" | "telegram">("wcall");
+  const [callTo, setCallTo] = useState("");
   const [busy, setBusy] = useState(false);
 
   const display = useMemo(() => formatRuNationalDisplay(national), [national]);
@@ -67,7 +70,7 @@ export default function PhoneAuthScreen() {
   const passwordValid = password.length >= 4;
   const apiPhone = useMemo(() => (phoneValid ? toApiPhoneFromNational10(national) : ""), [national, phoneValid]);
   const canSubmit = phoneValid && emailValid && passwordValid;
-  const canVerify = otpCode.trim().length >= 4;
+  const canVerify = otpChannel === "wcall" || otpCode.trim().length >= 4;
 
   const registerFallback = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -84,14 +87,16 @@ export default function PhoneAuthScreen() {
     });
     if (isOtpSent(data)) {
       setOtpId(data.otp_id);
+      setOtpChannel(data.channel === "telegram" ? "telegram" : "wcall");
+      setCallTo(data.call_to || "");
       setOtpStep(true);
-      Alert.alert(t("otp_sent_title"), t("otp_enter_sms"));
+      Alert.alert("Подтверждение телефона", data.channel === "telegram" ? "Введите код из Telegram" : "Позвоните на показанный номер");
       return;
     }
     await signIn(data.token, data.user);
   };
 
-  const onSubmit = async () => {
+  const onSubmit = async (channel: "wcall" | "telegram" = "wcall") => {
     if (!phoneValid || !apiPhone) {
       Alert.alert(t("error_title"), t("auth_invalid_phone"));
       return;
@@ -114,6 +119,7 @@ export default function PhoneAuthScreen() {
         name: displayNameFromEmail(cleanEmail, t("auth_default_master_name")),
         role,
         email: cleanEmail,
+        channel,
       };
       try {
       const data = await apiFetch(`/auth/${role}/phone/send-otp`, {
@@ -123,8 +129,10 @@ export default function PhoneAuthScreen() {
         });
         if (isOtpSent(data)) {
           setOtpId(data.otp_id);
+          setOtpChannel(data.channel === "telegram" ? "telegram" : "wcall");
+          setCallTo(data.call_to || "");
           setOtpStep(true);
-          Alert.alert(t("otp_sent_title"), t("otp_enter_sms"));
+          Alert.alert("Подтверждение телефона", data.channel === "telegram" ? "Введите код из Telegram" : "Позвоните на показанный номер");
           return;
         }
         if (data?.token) {
@@ -148,7 +156,7 @@ export default function PhoneAuthScreen() {
   const onVerifyOtp = async () => {
     if (!otpId || !apiPhone) return;
     if (!canVerify) {
-      Alert.alert(t("error_title"), t("otp_enter_sms"));
+      Alert.alert(t("error_title"), "Введите код из Telegram");
       return;
     }
     setBusy(true);
@@ -158,7 +166,7 @@ export default function PhoneAuthScreen() {
         body: JSON.stringify({
           phone: apiPhone,
           otp_id: otpId,
-          code: otpCode.trim(),
+          code: otpChannel === "wcall" ? "" : otpCode.trim(),
         }),
         auth: false,
       });
@@ -234,7 +242,7 @@ export default function PhoneAuthScreen() {
               style={[styles.cta, !canSubmit && styles.ctaDisabled]}
               accessibilityLabel="Зарегистрироваться"
               testID="register-submit"
-              onPress={onSubmit}
+              onPress={() => void onSubmit()}
               disabled={!canSubmit || busy}
               activeOpacity={0.9}
             >
@@ -243,24 +251,29 @@ export default function PhoneAuthScreen() {
           </>
         ) : (
           <>
-            <TextInput
+            {otpChannel === "wcall" ? <View style={styles.waitCallBox}>
+              <Text style={styles.waitCallText}>Позвоните с подтверждаемого телефона на номер</Text>
+              <Text style={styles.waitCallNumber} onPress={() => void Linking.openURL(`tel:${callTo}`)}>{callTo}</Text>
+              <Text style={styles.waitCallText}>Звонок автоматически сбросится.</Text>
+            </View> : <TextInput
               style={styles.input}
-              accessibilityLabel="Код из SMS"
-              placeholder={t("otp_enter_sms")}
+              accessibilityLabel="Код из Telegram"
+              placeholder="Код из Telegram"
               placeholderTextColor={colors.neutral400}
               keyboardType="number-pad"
               value={otpCode}
               onChangeText={setOtpCode}
               maxLength={8}
-            />
+            />}
             <TouchableOpacity
               style={[styles.cta, !canVerify && styles.ctaDisabled]}
               onPress={onVerifyOtp}
               disabled={!canVerify || busy}
               activeOpacity={0.9}
             >
-              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>{t("auth_verify_code")}</Text>}
+              {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaText}>{otpChannel === "wcall" ? "Я позвонил — проверить" : t("auth_verify_code")}</Text>}
             </TouchableOpacity>
+            {otpChannel === "wcall" && <TouchableOpacity onPress={() => void onSubmit("telegram")}><Text style={styles.loginLink}>Получить код в Telegram</Text></TouchableOpacity>}
             <TouchableOpacity onPress={() => setOtpStep(false)}>
               <Text style={styles.loginLink}>{t("auth_change_data")}</Text>
             </TouchableOpacity>
@@ -336,4 +349,7 @@ const styles = StyleSheet.create({
   divider: { flex: 1, height: 1, backgroundColor: colors.neutral100 },
   dividerText: { color: colors.neutral500, fontSize: 13 },
   loginLink: { marginTop: 8, textAlign: "center", color: colors.neutral600, fontSize: 14, fontWeight: "600" },
+  waitCallBox: { backgroundColor: colors.neutral100, borderRadius: radii.lg, padding: 18, alignItems: "center", gap: 8 },
+  waitCallText: { color: colors.neutral600, textAlign: "center", fontSize: 14 },
+  waitCallNumber: { color: colors.black, fontSize: 24, fontWeight: "800" },
 });
