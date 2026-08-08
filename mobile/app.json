@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "treabo-client",
-    "slug": "treabo-client",
-    "version": "1.0.5",
+    "slug": "treabo",
+    "version": "1.0.6",
     "orientation": "portrait",
     "scheme": "treabo-client",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
     "android": {
       "package": "ru.treabo.client",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 6,
+      "versionCode": 10,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-client.png",

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Treabo. Кабинет мастера",
     "slug": "treabo-specialist",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "orientation": "portrait",
     "scheme": "treabo-specialist",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
     "android": {
       "package": "ru.treabo.specialist",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 17,
+      "versionCode": 18,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-specialist.png",
@@ -28,7 +28,8 @@
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ],
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
@@ -62,11 +63,11 @@
       ],
       "expo-sqlite"
     ],
+    "owner": "sancans-team",
     "extra": {
       "eas": {
-        "projectId": "d190d995-496b-46e1-9564-a548b3114859"
+        "projectId": "89f81370-2336-4a65-bdec-3130cc8bac3d"
       }
-    },
-    "owner": "sancans-team"
+    }
   }
 }
