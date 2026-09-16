@@ -27,7 +27,8 @@ export type DraftSnapshot = {
 export type DraftAction =
   | { type: "wait" | "review"; message?: string }
   | { type: "ask_question"; question: DraftQuestion; message?: string }
-  | { type: "choose_category" | "choose_service" | "manual_fallback"; message: string; category_id?: string }
+  | { type: "clarify_intent"; message: string; quick_replies: string[]; allow_free_text: true }
+  | { type: "choose_category" | "choose_service"; message: string; category_id?: string; service_ids?: Array<string | number> }
   | { type: "split_intents"; message: string; intents: Array<{ service_id?: string | number | null; label: string }> };
 
 export type DraftResponse = {
@@ -35,6 +36,7 @@ export type DraftResponse = {
     draft: DraftSnapshot;
     ui_action?: DraftAction;
     progress?: { percent: number };
+    messages?: Array<{ id: string; role: "user" | "assistant"; text: string }>;
     task_id?: string;
   };
 };

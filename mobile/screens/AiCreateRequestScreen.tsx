@@ -31,6 +31,14 @@ function actionMessage(response: DraftResponse): string {
   return "message" in action ? action.message || "Продолжим" : "Продолжим";
 }
 
+function transcript(response: DraftResponse): Message[] {
+  return (response.data.messages || []).map((message) => ({
+    id: message.id,
+    role: message.role,
+    text: message.text,
+  }));
+}
+
 export default function AiCreateRequestScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const listRef = useRef<FlatList<Message>>(null);
@@ -65,10 +73,7 @@ export default function AiCreateRequestScreen() {
     restoreDraft().then((saved) => {
       if (saved) {
         setResponse(saved);
-        setMessages([
-          { id: "initial", role: "user", text: saved.data.draft.initial_text || "Новая заявка" },
-          { id: "restore", role: "assistant", text: actionMessage(saved) },
-        ]);
+        setMessages(transcript(saved));
         setCity(saved.data.draft.location?.city || "");
         setAddress(saved.data.draft.location?.address || "");
         if (saved.data.draft.location?.lat && saved.data.draft.location?.lng) {
@@ -83,7 +88,7 @@ export default function AiCreateRequestScreen() {
   }, []);
 
   useEffect(() => {
-    if (!action || !["choose_category", "choose_service", "manual_fallback", "split_intents"].includes(action.type)) {
+    if (!action || !["choose_category", "choose_service", "split_intents"].includes(action.type)) {
       setChoices([]);
       return;
     }
@@ -91,13 +96,15 @@ export default function AiCreateRequestScreen() {
       setChoices(action.intents.filter((item) => item.service_id != null).map((item) => ({ id: item.service_id!, name: item.label })));
       return;
     }
-    const path = action.type === "choose_category" || action.type === "manual_fallback"
+    const path = action.type === "choose_category"
       ? "/categories"
       : `/works?category_id=${encodeURIComponent(action.type === "choose_service" ? (action.category_id || draft?.category?.id || "") : (draft?.category?.id || ""))}`;
     apiFetch(path, { method: "GET" }).then((items) => {
-      setChoices((Array.isArray(items) ? items : []).map((item: any) => ({ id: item.id, name: item.name_ru || item.title })));
+      const mapped = (Array.isArray(items) ? items : []).map((item: any) => ({ id: item.id, name: item.name_ru || item.title }));
+      const allowed = action.type === "choose_service" ? action.service_ids || [] : [];
+      setChoices(allowed.length ? mapped.filter((item) => allowed.some((id) => String(id) === String(item.id))) : mapped.slice(0, 5));
     }).catch(() => setChoices([]));
-  }, [action?.type, draft?.category?.id]);
+  }, [action, draft?.category?.id]);
 
   useEffect(() => {
     if (!draft) return;
@@ -131,11 +138,7 @@ export default function AiCreateRequestScreen() {
 
   const addTurn = (userText: string, updated: DraftResponse) => {
     setResponse(updated);
-    setMessages((current) => [
-      ...current,
-      { id: `u-${Date.now()}`, role: "user", text: userText },
-      { id: `a-${Date.now()}`, role: "assistant", text: actionMessage(updated) },
-    ]);
+    setMessages(transcript(updated));
   };
 
   const run = async (operation: () => Promise<DraftResponse>, userText: string) => {
@@ -162,7 +165,7 @@ export default function AiCreateRequestScreen() {
 
   const selectChoice = (choice: Option) => {
     if (!draft || !action) return;
-    const path = action.type === "choose_category" || action.type === "manual_fallback" ? "/category/id" : "/work/id";
+    const path = action.type === "choose_category" ? "/category/id" : "/work/id";
     void run(() => patchDraft(draft, [{ op: "replace", path, value: choice.id }]), choice.name);
   };
 
@@ -217,6 +220,9 @@ export default function AiCreateRequestScreen() {
   };
 
   const quickOptions = useMemo(() => {
+    if (action?.type === "clarify_intent") {
+      return action.quick_replies.slice(0, 3).map((reply) => ({ value: reply, label: reply }));
+    }
     if (action?.type !== "ask_question") return [];
     if (action.question.options?.length) return action.question.options;
     if (action.question.field_type === "yesno" || action.question.field_type === "boolean") {
@@ -254,7 +260,7 @@ export default function AiCreateRequestScreen() {
 
         <View style={styles.composerArea}>
           {choices.length > 0 && <FlatList horizontal data={choices} keyExtractor={(item) => String(item.id)} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} renderItem={({ item }) => <TouchableOpacity style={styles.chip} onPress={() => selectChoice(item)}><Text style={styles.chipText}>{item.name}</Text></TouchableOpacity>} />}
-          {quickOptions.length > 0 && <View style={styles.optionGrid}>{quickOptions.map((option) => { const selected = multiValues.some((value) => String(value) === String(option.value)); return <TouchableOpacity key={String(option.value)} style={[styles.option, selected && styles.optionSelected]} onPress={() => { if (!draft || action?.type !== "ask_question" || action.question.id == null) return; if (isMulti) setMultiValues((current) => selected ? current.filter((value) => String(value) !== String(option.value)) : [...current, option.value]); else void run(() => answerQuestion(draft, action.question.id!, option.value), option.label); }}><Text style={styles.optionText}>{selected ? "✓ " : ""}{option.label}</Text></TouchableOpacity>; })}{isMulti && <TouchableOpacity style={[styles.multiConfirm, !multiValues.length && styles.sendDisabled]} disabled={!multiValues.length || busy} onPress={() => draft && action?.type === "ask_question" && action.question.id != null && void run(() => answerQuestion(draft, action.question.id!, multiValues), `Выбрано: ${multiValues.length}`)}><Text style={styles.photoButtonText}>Продолжить</Text></TouchableOpacity>}</View>}
+          {quickOptions.length > 0 && <View style={styles.optionGrid}>{quickOptions.map((option) => { const selected = multiValues.some((value) => String(value) === String(option.value)); return <TouchableOpacity key={String(option.value)} style={[styles.option, selected && styles.optionSelected]} onPress={() => { if (!draft) return; if (action?.type === "clarify_intent") { void run(() => answerDraft(draft, { message: String(option.value) }), option.label); return; } if (action?.type !== "ask_question" || action.question.id == null) return; if (isMulti) setMultiValues((current) => selected ? current.filter((value) => String(value) !== String(option.value)) : [...current, option.value]); else void run(() => answerQuestion(draft, action.question.id!, option.value), option.label); }}><Text style={styles.optionText}>{selected ? "✓ " : ""}{option.label}</Text></TouchableOpacity>; })}{isMulti && <TouchableOpacity style={[styles.multiConfirm, !multiValues.length && styles.sendDisabled]} disabled={!multiValues.length || busy} onPress={() => draft && action?.type === "ask_question" && action.question.id != null && void run(() => answerQuestion(draft, action.question.id!, multiValues), `Выбрано: ${multiValues.length}`)}><Text style={styles.photoButtonText}>Продолжить</Text></TouchableOpacity>}</View>}
           {action?.type === "ask_question" && action.question.field_type === "photo" ? (
             <View style={styles.optionGrid}>
               <TouchableOpacity style={styles.photoButton} onPress={addPhoto} disabled={busy}><Ionicons name="image-outline" size={20} color={colors.white} /><Text style={styles.photoButtonText}>Добавить фото</Text></TouchableOpacity>
@@ -276,6 +282,8 @@ export default function AiCreateRequestScreen() {
               {budgetType === "range" && <View style={styles.rangeRow}><TextInput style={[styles.reviewInput, styles.rangeInput]} value={budgetMin} onChangeText={setBudgetMin} keyboardType="number-pad" placeholder="От, ₽" /><TextInput style={[styles.reviewInput, styles.rangeInput]} value={budgetMax} onChangeText={setBudgetMax} keyboardType="number-pad" placeholder="До, ₽" /></View>}
               <TouchableOpacity style={styles.publish} onPress={publish} disabled={busy}><Text style={styles.publishText}>Опубликовать заявку</Text><Ionicons name="arrow-forward" size={20} color={colors.black} /></TouchableOpacity>
             </View>
+          ) : action?.type === "clarify_intent" ? (
+            <View style={styles.composer}><TextInput style={styles.input} value={text} onChangeText={setText} placeholder="Или напишите своими словами" placeholderTextColor={colors.neutral400} multiline maxLength={4000} /><TouchableOpacity style={[styles.send, !text.trim() && styles.sendDisabled]} disabled={!text.trim() || busy} onPress={() => { Keyboard.dismiss(); submitText(); }}>{busy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={22} color={colors.white} />}</TouchableOpacity></View>
           ) : choices.length === 0 && quickOptions.length === 0 ? (
             <View><View style={styles.composer}><TextInput style={styles.input} value={text} onChangeText={setText} onFocus={() => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 120)} placeholder={draft ? "Ваш ответ" : "Например: нужно собрать шкаф"} placeholderTextColor={colors.neutral400} multiline maxLength={4000} /><TouchableOpacity style={[styles.send, !text.trim() && styles.sendDisabled]} disabled={!text.trim() || busy} onPress={() => { Keyboard.dismiss(); submitText(); }}>{busy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={22} color={colors.white} />}</TouchableOpacity></View>{draft && action?.type === "ask_question" && !action.question.required && action.question.id != null && <TouchableOpacity style={styles.skipInline} onPress={() => void run(() => skipQuestion(draft, action.question.id!), "Пропустить")}><Text style={styles.skipText}>Пропустить вопрос</Text></TouchableOpacity>}</View>
           ) : null}

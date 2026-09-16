@@ -21,7 +21,7 @@ function proffiApiPath(path: string): string {
   }
 
   if (path === '/api/uploads') {
-    return '/api/proffi/uploads';
+    return '/api/proffi/admin/uploads';
   }
 
   return path;

@@ -4,9 +4,12 @@ type Dict = Record<string, string>;
 
 const ru: Dict = {
   tab_home: "Главная",
+  tab_map: "Карта",
+  tab_add: "Добавить",
+  tab_requests: "Заявки",
   tab_orders: "Заказы",
   tab_chats: "Чаты",
-  tab_profile: "Анкета",
+  tab_profile: "Профиль",
   onboarding_title: "Зарабатывайте на том, что умеете",
   onboarding_subtitle: "Получайте заказы и общайтесь с клиентами напрямую",
   onboarding_specialist_cta: "Хочу войти и выполнить заказ",

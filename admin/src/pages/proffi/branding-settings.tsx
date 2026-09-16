@@ -2,16 +2,19 @@ import Layout from '@/components/layouts/admin';
 import { ProffiError, ProffiPageHeader } from '@/components/proffi-admin/common';
 import Card from '@/components/common/card';
 import Description from '@/components/ui/description';
-import FileInput from '@/components/ui/file-input';
 import Loader from '@/components/ui/loader/loader';
 import Button from '@/components/ui/button';
-import { getProffiAdmin, putProffiAdmin } from '@/data/proffi-admin';
+import {
+  getProffiAdmin,
+  putProffiAdmin,
+  uploadProffiAdminFile,
+} from '@/data/proffi-admin';
 import { siteSettings } from '@/settings/site.settings';
 import { adminOnly } from '@/utils/auth-utils';
 import { getFormattedImage } from '@/utils/get-formatted-image';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useTranslation } from 'next-i18next';
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 type BrandingForm = {
@@ -29,12 +32,11 @@ export default function TreaboBrandingSettingsPage() {
   const [saved, setSaved] = useState(false);
   const uploadMaxFilesizeKb = 20480;
   const uploadMaxFilesizeMb = uploadMaxFilesizeKb / 1024;
-  const maxFileSize = uploadMaxFilesizeKb * 1000;
 
   const {
-    control,
     handleSubmit,
     reset,
+    setValue,
     watch,
   } = useForm<BrandingForm>({
     defaultValues: {
@@ -57,6 +59,40 @@ export default function TreaboBrandingSettingsPage() {
 
   const logoPreview = watch('logo');
   const darkLogoPreview = watch('dark_logo');
+
+  const uploadLogo = async (
+    event: ChangeEvent<HTMLInputElement>,
+    field: 'logo' | 'dark_logo'
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setSaving(true);
+    setSaved(false);
+    setError('');
+    try {
+      const upload = await uploadProffiAdminFile(file, 'branding');
+      const url = upload.url || upload.path;
+      setValue(
+        field,
+        {
+          id: upload.path,
+          original: url,
+          thumbnail: url,
+        },
+        { shouldDirty: true }
+      );
+    } catch (requestError: any) {
+      setError(
+        requestError.response?.data?.message ||
+          requestError.response?.data?.detail ||
+          requestError.message
+      );
+    } finally {
+      setSaving(false);
+      event.target.value = '';
+    }
+  };
 
   const onSubmit = async (values: BrandingForm) => {
     setSaving(true);
@@ -111,18 +147,28 @@ export default function TreaboBrandingSettingsPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="max-w-3xl space-y-6">
         <Card className="p-5">
           <Description title={t('form:input-label-logo')} details={logoHelp} />
-          <FileInput
-            name="logo"
-            control={control}
-            multiple={false}
-            maxSize={maxFileSize}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={saving}
+            onChange={(event) => uploadLogo(event, 'logo')}
+            className="block w-full rounded border border-border-200 p-3 text-sm"
           />
           {logoPreview?.thumbnail || logoPreview?.original ? (
-            <img
-              src={logoPreview.thumbnail || logoPreview.original}
-              alt="Treabo logo preview"
-              className="mt-4 max-h-24 rounded border border-border-200 bg-white p-2"
-            />
+            <div className="mt-4 flex items-center gap-3">
+              <img
+                src={logoPreview.thumbnail || logoPreview.original}
+                alt="Treabo logo preview"
+                className="max-h-24 rounded border border-border-200 bg-white p-2"
+              />
+              <button
+                type="button"
+                onClick={() => setValue('logo', null, { shouldDirty: true })}
+                className="text-sm font-semibold text-red-600"
+              >
+                Удалить
+              </button>
+            </div>
           ) : null}
         </Card>
 
@@ -131,18 +177,28 @@ export default function TreaboBrandingSettingsPage() {
             title={t('form:dark-input-label-logo')}
             details="Тёмная версия логотипа для тёмной темы (опционально)."
           />
-          <FileInput
-            name="dark_logo"
-            control={control}
-            multiple={false}
-            maxSize={maxFileSize}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={saving}
+            onChange={(event) => uploadLogo(event, 'dark_logo')}
+            className="block w-full rounded border border-border-200 p-3 text-sm"
           />
           {darkLogoPreview?.thumbnail || darkLogoPreview?.original ? (
-            <img
-              src={darkLogoPreview.thumbnail || darkLogoPreview.original}
-              alt="Treabo dark logo preview"
-              className="mt-4 max-h-24 rounded border border-border-200 bg-gray-900 p-2"
-            />
+            <div className="mt-4 flex items-center gap-3">
+              <img
+                src={darkLogoPreview.thumbnail || darkLogoPreview.original}
+                alt="Treabo dark logo preview"
+                className="max-h-24 rounded border border-border-200 bg-gray-900 p-2"
+              />
+              <button
+                type="button"
+                onClick={() => setValue('dark_logo', null, { shouldDirty: true })}
+                className="text-sm font-semibold text-red-600"
+              >
+                Удалить
+              </button>
+            </div>
           ) : null}
         </Card>
 

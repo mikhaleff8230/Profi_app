@@ -38,7 +38,7 @@ const DEV_MOCK_USER: User = {
 };
 
 function isAllowedAppUser(user: User | null | undefined): user is User {
-  return user?.role === "customer";
+  return user?.role === "customer" || user?.role === "specialist";
 }
 
 type AuthCtx = {
@@ -135,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [consumeOAuthUrl]);
 
   useEffect(() => {
-    if (!user || user.role !== "customer") return undefined;
+    if (!user) return undefined;
     void registerPushNotifications();
     const subscription = subscribeToNotificationLinks();
     return () => subscription.remove();
@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!isAllowedAppUser(u)) {
       await setToken(null);
       setUser(null);
-      throw new Error("Войдите с аккаунтом клиента");
+      throw new Error("Этот аккаунт не поддерживается");
     }
     resetEcho();
     await setToken(token);

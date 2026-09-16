@@ -14,7 +14,7 @@ const defaults = (appType: AppType): TreaboMobileUpdateSettings => ({
   min_supported_build: 1,
   force_update: false,
   android_url: appType === 'specialist'
-    ? 'https://treabo.ru/downloads/treabo-proffi.apk'
+    ? 'https://treabo.ru/downloads/treabo-specialist.apk'
     : 'https://treabo.ru/downloads/treabo-client.apk',
   ios_url: '',
   release_notes: '',
@@ -136,7 +136,7 @@ export default function TreaboMobileUpdateSettingsPage() {
             <span className="mb-2 block text-sm font-semibold text-heading">Android APK URL</span>
             <input
               className="w-full rounded border border-border-200 px-3 py-2"
-              placeholder="https://treabo.ru/downloads/treabo-proffi.apk"
+              placeholder="https://treabo.ru/downloads/treabo-specialist.apk"
               value={form.android_url || ''}
               onChange={(e) => setForm({ ...form, android_url: e.target.value })}
             />

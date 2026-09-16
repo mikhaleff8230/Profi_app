@@ -9,8 +9,6 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import type { CompositeNavigationProp } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { TabScreenLayout } from "../../components/TabScreenLayout";
@@ -20,12 +18,9 @@ import { useChatStore } from "../store/chatStore";
 import type { Chat } from "../types/chat";
 import { colors, spacing, typography } from "../theme";
 import { timeAgo } from "../utils/timeAgo";
-import type { MainTabParamList, RootStackParamList } from "../navigation/types";
+import type { RootStackParamList } from "../navigation/types";
 
-type Nav = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList, "Chats">,
-  NativeStackNavigationProp<RootStackParamList>
->;
+type Nav = NativeStackNavigationProp<RootStackParamList, "ChatList">;
 
 const AVATAR_BG = ["#f59e0b", "#10b981", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4"];
 
