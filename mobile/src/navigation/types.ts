@@ -17,8 +17,9 @@ export type RootStackParamList = {
   // Canonical TREABO routes.
   AIRequest: undefined;
   CreatePlace: undefined;
+  PlacePublished: { placeId: string };
   PlaceDetail: { placeId: string };
-  Search: undefined;
+  Search: { filtersOpen?: boolean } | undefined;
   Applications: { taskId: string };
   ChatList: undefined;
   Chat: { chatId: string };
@@ -85,6 +86,7 @@ export type TasksStackParamList = {
 
 export type AuthStackParamList = {
   Welcome: undefined;
+  AuthOptions: undefined;
   PhoneEntry: { role?: "customer" | "specialist" };
   Login: undefined;
 };

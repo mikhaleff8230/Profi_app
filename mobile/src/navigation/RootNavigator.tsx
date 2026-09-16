@@ -11,9 +11,18 @@ import { useLang } from "../context/LangContext";
 import { colors } from "../theme";
 import { useChatStore } from "../store/chatStore";
 import WelcomeAuthScreen from "../../screens/auth/WelcomeAuthScreen";
+import AuthOptionsScreen from "../../screens/auth/AuthOptionsScreen";
 import PhoneAuthScreen from "../../screens/auth/PhoneAuthScreen";
 import LoginStubScreen from "../../screens/LoginStubScreen";
-import HomeScreen from "../../screens/HomeScreen";
+import HomePlacesScreen from "../../screens/HomePlacesScreen";
+import PlacesMapScreen from "../../screens/PlacesMapScreen";
+import PlaceSearchScreen from "../../screens/PlaceSearchScreen";
+import PlaceDetailScreen from "../../screens/PlaceDetailScreen";
+import CreatePlaceScreen from "../../screens/CreatePlaceScreen";
+import PlacePublishedScreen from "../../screens/PlacePublishedScreen";
+import RequestsHubScreen from "../../screens/RequestsHubScreen";
+import ProfileHubScreen from "../../screens/ProfileHubScreen";
+import FavoritesScreen from "../../screens/FavoritesScreen";
 import MapScreen from "../../screens/MapScreen";
 import TasksListScreen from "../../screens/TasksListScreen";
 import TaskSearchScreen from "../../screens/TaskSearchScreen";
@@ -60,7 +69,7 @@ function EmptyActionRoute() {
 function MapTab() {
   return (
     <MapStackNav.Navigator initialRouteName="Map" screenOptions={{ headerShown: false }}>
-      <MapStackNav.Screen name="Map" component={MapScreen} />
+      <MapStackNav.Screen name="Map" component={PlacesMapScreen} />
       <MapStackNav.Screen name="TasksList" component={TasksListScreen} />
       <MapStackNav.Screen name="TaskSearch" component={TaskSearchScreen} />
       <MapStackNav.Screen name="TaskFilter" component={TaskFilterScreen} />
@@ -69,16 +78,12 @@ function MapTab() {
 }
 
 function RequestsTab() {
-  const { user } = useAuth();
-  const initialRouteName = user?.role === "specialist" ? "TasksList" : "MyRequests";
-
   return (
     <RequestsStackNav.Navigator
-      key={user?.role ?? "guest"}
-      initialRouteName={initialRouteName}
+      initialRouteName="MyRequests"
       screenOptions={{ headerShown: false }}
     >
-      <RequestsStackNav.Screen name="MyRequests" component={HomeScreen} />
+      <RequestsStackNav.Screen name="MyRequests" component={RequestsHubScreen} />
       <RequestsStackNav.Screen name="TasksList" component={TasksListScreen} />
       <RequestsStackNav.Screen name="Map" component={MapScreen} />
       <RequestsStackNav.Screen name="TaskSearch" component={TaskSearchScreen} />
@@ -131,7 +136,7 @@ function MainTabs() {
       >
         <Tab.Screen
           name="Home"
-          component={HomeScreen}
+          component={HomePlacesScreen}
           options={{ title: t("tab_home"), tabBarLabel: t("tab_home") }}
         />
         <Tab.Screen
@@ -174,7 +179,7 @@ function MainTabs() {
         />
         <Tab.Screen
           name="Profile"
-          component={ProfileScreen}
+          component={ProfileHubScreen}
           options={{ title: t("tab_profile"), tabBarLabel: t("tab_profile") }}
         />
       </Tab.Navigator>
@@ -182,6 +187,10 @@ function MainTabs() {
       <CreateActionSheet
         visible={createOpen}
         onClose={() => setCreateOpen(false)}
+        onShowWork={() => {
+          setCreateOpen(false);
+          requestAnimationFrame(() => navigation.navigate("CreatePlace"));
+        }}
         onFindMaster={() => {
           setCreateOpen(false);
           requestAnimationFrame(() => navigation.navigate("AIRequest"));
@@ -197,12 +206,16 @@ function LoggedInStack() {
       <AppStackNav.Screen name="MainTabs" component={MainTabs} />
 
       <AppStackNav.Screen name="AIRequest" component={AiCreateRequestScreen} />
-      <AppStackNav.Screen name="Search" component={TaskSearchScreen} />
+      <AppStackNav.Screen name="Search" component={PlaceSearchScreen} />
+      <AppStackNav.Screen name="CreatePlace" component={CreatePlaceScreen} />
+      <AppStackNav.Screen name="PlacePublished" component={PlacePublishedScreen} />
+      <AppStackNav.Screen name="PlaceDetail" component={PlaceDetailScreen} />
       <AppStackNav.Screen name="Applications" component={TaskDetailScreen} />
       <AppStackNav.Screen name="ChatList" component={ChatsScreen} />
       <AppStackNav.Screen name="Chat" component={ChatDetailScreen} />
       <AppStackNav.Screen name="PublicProfile" component={SpecialistProfileScreen} />
       <AppStackNav.Screen name="Balance" component={WalletScreen} />
+      <AppStackNav.Screen name="Favorites" component={FavoritesScreen} />
       <AppStackNav.Screen name="Settings" component={ProfileScreen} />
 
       <AppStackNav.Screen name="AiCreateRequest" component={AiCreateRequestScreen} />
@@ -252,6 +265,9 @@ export function RootNavigator() {
           screens: {
             MainTabs: "home",
             Map: "map",
+            Search: "search",
+            PlaceDetail: "place/:placeId",
+            CreatePlace: "place/new",
             Chat: "chat/:chatId",
             TaskDetail: "task/:taskId",
             Applications: "task/:taskId/applications",
@@ -263,6 +279,7 @@ export function RootNavigator() {
       {user ? <LoggedInStack /> : (
         <AuthStackNav.Navigator screenOptions={{ headerShown: false }} initialRouteName="Welcome">
           <AuthStackNav.Screen name="Welcome" component={WelcomeAuthScreen} />
+          <AuthStackNav.Screen name="AuthOptions" component={AuthOptionsScreen} />
           <AuthStackNav.Screen name="PhoneEntry" component={PhoneAuthScreen} />
           <AuthStackNav.Screen name="Login" component={LoginStubScreen} />
         </AuthStackNav.Navigator>

@@ -296,3 +296,21 @@ RootNavigator
 - specialist shell не переделывалась.
 
 Regression check: `npx tsc --noEmit` проходит в обоих приложениях; Android Expo bundle client-приложения успешно собран.
+
+## Реализовано после передачи полного комплекта UI-референсов
+
+Пользователь передал отдельные референсы следующих экранов и разрешил перейти от зарезервированных маршрутов к реализации. Этот раздел заменяет пометки `RESERVE` и `REPLACE LATER` выше для client-приложения.
+
+| Route | Реализация | Backend/data |
+|---|---|---|
+| `Home` | `HomePlacesScreen` — лента Плейсов, категории, избранное, переходы в поиск/карту | `GET /places`, `GET /categories`, favorite endpoints |
+| `Search` | `PlaceSearchScreen` — результаты и bottom-sheet фильтров | `GET /places` с `search/category/price/sort` |
+| `Map` | `PlacesMapScreen` — режимы «Плейсы / Заявки», карточки и кнопка карты в списках | `GET /places`, `GET /tasks`, существующая Yandex Maps shell |
+| `PlaceDetail` | `PlaceDetailScreen` — галерея, цена или «Цена по запросу», мастер, избранное | `GET /places/{place}`, favorite, create-request |
+| `CreatePlace` | `CreatePlaceScreen` — фото, категория, работа, город, цена, срок, черновик/публикация | upload, `GET /works`, `POST /places` |
+| `PlacePublished` | `PlacePublishedScreen` — подтверждение и дальнейшие действия | `GET /places/{place}` |
+| `Requests` | `RequestsHubScreen` — мои заявки, отклики, доступные заявки | существующие task/application endpoints |
+| `Profile` | `ProfileHubScreen` — единая оболочка заказчика/мастера | текущий auth user, tasks, reviews, balance routes |
+| `Favorites` | `FavoritesScreen` — сохранённые Плейсы | `GET /places?favorites=1`, favorite endpoints |
+
+Существующие `TaskDetail`, `TaskApply`, AI Request, Chat, Wallet и profile editing screens сохранены. В пользовательском UI применяется терминология «Плейс / Плейсы»; английские `Place/Places` остаются только во внутренних route/type/API identifiers.

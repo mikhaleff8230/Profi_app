@@ -14,10 +14,11 @@ import { colors } from "../theme";
 type Props = {
   visible: boolean;
   onClose: () => void;
+  onShowWork: () => void;
   onFindMaster: () => void;
 };
 
-export function CreateActionSheet({ visible, onClose, onFindMaster }: Props) {
+export function CreateActionSheet({ visible, onClose, onShowWork, onFindMaster }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.root}>
@@ -32,16 +33,16 @@ export function CreateActionSheet({ visible, onClose, onFindMaster }: Props) {
           <Text style={styles.title}>Что вы хотите сделать?</Text>
 
           <View style={styles.actions}>
-            <View style={[styles.action, styles.actionUnavailable]} accessibilityState={{ disabled: true }}>
+            <TouchableOpacity style={[styles.action, styles.actionPrimary]} onPress={onShowWork}>
               <View style={styles.iconBox}>
                 <Ionicons name="images-outline" size={24} color={colors.black} />
               </View>
               <View style={styles.actionCopy}>
                 <Text style={styles.actionTitle}>Показать работу</Text>
-                <Text style={styles.actionHint}>Создание Place будет подключено следующим этапом</Text>
+                <Text style={styles.actionHint}>Добавить готовый проект в ленту Плейсов</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.neutral300} />
-            </View>
+              <Ionicons name="chevron-forward" size={22} color={colors.black} />
+            </TouchableOpacity>
 
             <TouchableOpacity
               accessibilityRole="button"
@@ -110,6 +111,7 @@ const styles = StyleSheet.create({
     borderColor: colors.neutral100,
   },
   actionUnavailable: { opacity: 0.52 },
+  actionPrimary: { backgroundColor: "#F2FCE5", borderColor: "#E5F7BD" },
   iconBox: {
     width: 46,
     height: 46,
