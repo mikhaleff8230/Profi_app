@@ -211,7 +211,7 @@ Legacy `Wallet`/`PaymentReturn` и payment-return deep link сохранить.
 | `CreateTask` | `CreateTaskScreen` | legacy ручная форма заявки |
 | `ChatDetail` | `ChatDetailScreen` | внутренние переходы и старые links |
 | `SpecialistProfile` | `SpecialistProfileScreen` | Task/Chat → мастер |
-| `CustomerProfile` | `CustomerProfileScreen` | Task/Chat → заказчик |
+| `CustomerProfile` | только specialist app; в client сохранён shared typed contract | client replacement отсутствует, новый экран в ТЗ №2 не создаётся |
 | `Wallet` | `WalletScreen` | профессиональный баланс |
 | `PaymentReturn` | `WalletScreen` | callback оплаты |
 | `PhoneChange` | `PhoneChangeScreen` | настройки аккаунта |
@@ -252,7 +252,7 @@ RootNavigator
         ├── TasksList / TaskSearch / TaskFilter
         ├── TaskApply / CreateTask
         ├── ChatDetail
-        ├── SpecialistProfile / CustomerProfile
+        ├── SpecialistProfile
         ├── PaymentReturn
         └── PhoneChange / IdentityVerification / MyReviews
 ```
@@ -268,7 +268,7 @@ RootNavigator
 | `*/task/:taskId` | `TaskDetail` | добавить compatibility path до появления task push |
 | `*/task/:taskId/applications` | `TaskDetail` | открыть существующий applications section без нового screen |
 | `*/specialist/:specialistId` | `SpecialistProfile`/`PublicProfile` | сохранить существующий экран |
-| `*/customer/:customerId` | `CustomerProfile`/`PublicProfile` | сохранить существующий экран |
+| `*/customer/:customerId` | `CustomerProfile` | сохраняется в specialist app; client destination появится только вместе с реальным adapter |
 
 Для client app использовать prefixes `treabo-client://` и `treabo://`; для specialist app — `treabo-specialist://` и `treabo://`. Переименование внутренних routes выполнять через aliases, без разрыва текущих `navigation.navigate(...)`.
 
@@ -284,4 +284,15 @@ RootNavigator
 8. Разрешить обе роли в канонической shell, сохранив permissions на уровне действий.
 9. Прогнать TypeScript и navigation regression для customer/specialist flows.
 
-UI shell до получения референса не реализуется.
+## Реализовано после получения navigation reference
+
+- единый client `MainTabs`: `Home / Map / CreateAction / Requests / Profile`;
+- центральная кнопка `+` не меняет tab и открывает action sheet;
+- «Найти мастера» переиспользует `AiCreateRequestScreen`;
+- `CreatePlace`, `PlaceDetail` и `Favorites` оставлены typed contracts без выдуманного UI;
+- client принимает `treabo-client://` и старый `treabo://`;
+- `Chat`, `TaskDetail`, `Applications`, `PublicProfile` и legacy route names остаются доступны через `AppStack`;
+- обе роли допускаются в единую client shell, backend permissions не менялись;
+- specialist shell не переделывалась.
+
+Regression check: `npx tsc --noEmit` проходит в обоих приложениях; Android Expo bundle client-приложения успешно собран.

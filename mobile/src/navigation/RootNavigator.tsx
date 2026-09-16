@@ -250,14 +250,8 @@ export function RootNavigator() {
         prefixes: ["treabo-client://", "treabo://"],
         config: {
           screens: {
-            MainTabs: {
-              screens: {
-                Home: "home",
-                Map: "map",
-                Requests: "requests",
-                Profile: "profile",
-              },
-            },
+            MainTabs: "home",
+            Map: "map",
             Chat: "chat/:chatId",
             TaskDetail: "task/:taskId",
             Applications: "task/:taskId/applications",

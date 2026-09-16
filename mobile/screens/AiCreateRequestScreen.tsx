@@ -197,7 +197,7 @@ export default function AiCreateRequestScreen() {
       await publishDraft(updated.data.draft);
       await clearClientDraft();
       Alert.alert("Заявка опубликована", "Мастера смогут откликнуться на неё.", [
-        { text: "Готово", onPress: () => navigation.navigate("MainTabs") },
+        { text: "Готово", onPress: () => navigation.navigate("MainTabs", { screen: "Home" }) },
       ]);
       setResponse(null);
       setMessages([]);
